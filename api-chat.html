@@ -925,6 +925,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                         'anthropic-version': '2023-06-01',
+                        'anthropic-dangerous-direct-browser-access': 'true',
                         'x-api-key': model.api_key,
                         ...(model.headers || {})
                     },
@@ -1248,6 +1249,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                         'anthropic-version': '2023-06-01',
+                        'anthropic-dangerous-direct-browser-access': 'true',
                         'x-api-key': model.api_key,
                         ...(model.headers || {})
                     },
