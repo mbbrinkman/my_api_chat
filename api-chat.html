@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Chat</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .tabs {
+            display: flex;
+            background: #2a2a2a;
+            border-bottom: 1px solid #3a3a3a;
+            padding: 0 12px;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: #888;
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #e0e0e0;
+        }
+
+        .tab.active {
+            color: #e0e0e0;
+            border-bottom-color: #4a9eff;
+        }
+
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        #chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            max-width: 85%;
+        }
+
+        .message.user {
+            margin-left: auto;
+            background: #2a4a7a;
+            padding: 12px 16px;
+            border-radius: 12px;
+        }
+
+        .message.assistant {
+            background: #2a2a2a;
+            padding: 12px 16px;
+            border-radius: 12px;
+        }
+
+        .message.thinking {
+            background: #3a2a1a;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border-left: 3px solid #ff8c42;
+            opacity: 0.85;
+            font-style: italic;
+        }
+
+        .message-content {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+
+        .message-actions {
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .message-actions button {
+            background: #3a3a3a;
+            border: none;
+            color: #888;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .message-actions button:hover {
+            background: #4a4a4a;
+            color: #e0e0e0;
+        }
+
+        .file-preview {
+            margin-top: 8px;
+            max-width: 100%;
+        }
+
+        .file-preview img, .file-preview video {
+            max-width: 100%;
+            border-radius: 8px;
+        }
+
+        .file-info {
+            background: #3a3a3a;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        #chat-input-area {
+            background: #2a2a2a;
+            border-top: 1px solid #3a3a3a;
+            padding: 16px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        #message-input {
+            flex: 1;
+            background: #1a1a1a;
+            border: 1px solid #3a3a3a;
+            color: #e0e0e0;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 44px;
+            max-height: 200px;
+        }
+
+        #message-input:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        .file-upload-btn, .model-select, #send-btn {
+            background: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            color: #e0e0e0;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .model-select {
+            min-width: 150px;
+        }
+
+        #send-btn {
+            background: #4a9eff;
+            border-color: #4a9eff;
+            font-weight: 600;
+        }
+
+        #send-btn:hover {
+            background: #3a8eef;
+        }
+
+        #send-btn:disabled {
+            background: #3a3a3a;
+            color: #666;
+            cursor: not-allowed;
+        }
+
+        .attached-files {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .attached-file {
+            background: #3a3a3a;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .attached-file button {
+            background: #4a4a4a;
+            border: none;
+            color: #e0e0e0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .settings-container, .prompts-container, .history-container {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .settings-section {
+            margin-bottom: 24px;
+        }
+
+        .settings-section h3 {
+            margin-bottom: 12px;
+            color: #4a9eff;
+        }
+
+        textarea, input, select {
+            width: 100%;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            color: #e0e0e0;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        textarea {
+            min-height: 200px;
+            resize: vertical;
+        }
+
+        button.primary {
+            background: #4a9eff;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 12px;
+        }
+
+        button.primary:hover {
+            background: #3a8eef;
+        }
+
+        .prompt-item, .history-item {
+            background: #2a2a2a;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #3a3a3a;
+        }
+
+        .prompt-item h4 {
+            margin-bottom: 8px;
+            color: #4a9eff;
+        }
+
+        .prompt-actions, .history-actions {
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .prompt-actions button, .history-actions button {
+            background: #3a3a3a;
+            border: none;
+            color: #e0e0e0;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .prompt-actions button:hover, .history-actions button:hover {
+            background: #4a4a4a;
+        }
+
+        .error {
+            background: #4a2a2a;
+            border-left: 3px solid #ff4a4a;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .message {
+                max-width: 95%;
+            }
+
+            .input-row {
+                flex-wrap: wrap;
+            }
+
+            .model-select {
+                min-width: 100px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="tabs">
+        <button class="tab active" data-tab="chat">Chat</button>
+        <button class="tab" data-tab="prompts">System Prompts</button>
+        <button class="tab" data-tab="history">History</button>
+        <button class="tab" data-tab="settings">Settings</button>
+    </div>
+
+    <div id="chat-tab" class="tab-content active">
+        <div id="chat-messages"></div>
+        <div id="chat-input-area">
+            <div class="attached-files" id="attached-files"></div>
+            <div class="input-row">
+                <input type="file" id="file-input" multiple accept="*/*">
+                <button class="file-upload-btn" onclick="document.getElementById('file-input').click()">📎</button>
+                <textarea id="message-input" placeholder="Type a message..."></textarea>
+                <select class="model-select" id="model-select"></select>
+                <button id="send-btn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="prompts-tab" class="tab-content">
+        <div class="prompts-container">
+            <div class="settings-section">
+                <h3>Current System Prompt</h3>
+                <select id="active-prompt-select" style="margin-bottom: 12px;"></select>
+            </div>
+            <div class="settings-section">
+                <h3>Add New Prompt</h3>
+                <input type="text" id="new-prompt-name" placeholder="Prompt name" style="margin-bottom: 8px;">
+                <textarea id="new-prompt-content" placeholder="System prompt content..."></textarea>
+                <button class="primary" onclick="addSystemPrompt()">Add Prompt</button>
+            </div>
+            <div class="settings-section">
+                <h3>Saved Prompts</h3>
+                <div id="prompts-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="history-tab" class="tab-content">
+        <div class="history-container">
+            <div class="settings-section">
+                <h3>Conversation History</h3>
+                <button class="primary" onclick="clearHistory()">Clear All History</button>
+            </div>
+            <div id="history-list"></div>
+        </div>
+    </div>
+
+    <div id="settings-tab" class="tab-content">
+        <div class="settings-container">
+            <div class="settings-section">
+                <h3>Models Configuration</h3>
+                <p style="margin-bottom: 8px; color: #888; font-size: 13px;">JSON array of model configurations</p>
+                <textarea id="models-config"></textarea>
+                <button class="primary" onclick="saveModelsConfig()">Save Models</button>
+            </div>
+            <div class="settings-section">
+                <h3>Example Configuration</h3>
+                <pre style="background: #2a2a2a; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px;">{
+  "models": [
+    {
+      "name": "Claude Sonnet 4.5",
+      "template": "anthropic",
+      "endpoint": "https://api.anthropic.com/v1/messages",
+      "model_id": "claude-sonnet-4-5-20250929",
+      "api_key": "your-api-key-here",
+      "max_tokens": 8096
+    },
+    {
+      "name": "GPT-4 Vision",
+      "template": "openai",
+      "endpoint": "https://api.openai.com/v1/chat/completions",
+      "model_id": "gpt-4-vision-preview",
+      "api_key": "your-api-key-here"
+    }
+  ],
+  "chains": [
+    {
+      "name": "Vision → Reasoning Chain",
+      "type": "chain",
+      "steps": [
+        {
+          "model_index": 1,
+          "system_prompt": "Describe this image in detail.",
+          "pass_files": true
+        },
+        {
+          "model_index": 0,
+          "system_prompt": "Based on the image description, answer the user's question.",
+          "pass_files": false
+        }
+      ]
+    },
+    {
+      "name": "Debate: Claude vs GPT",
+      "type": "debate",
+      "models": [0, 1],
+      "rounds": 3
+    },
+    {
+      "name": "Ask Both Models",
+      "type": "parallel",
+      "models": [0, 1]
+    }
+  ]
+}</pre>
+            </div>
+            <div class="settings-section">
+                <h3>Export/Import Data</h3>
+                <button class="primary" onclick="exportData()">Export All Data</button>
+                <button class="primary" onclick="document.getElementById('import-input').click()">Import Data</button>
+                <input type="file" id="import-input" accept=".json" style="display: none;" onchange="importData(event)">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let models = [];
+        let chains = [];
+        let systemPrompts = [];
+        let activePromptId = null;
+        let currentConversation = [];
+        let attachedFiles = [];
+        let editingMessageIndex = null;
+        let isStreaming = false;
+
+        // Initialize
+        function init() {
+            loadFromStorage();
+            setupEventListeners();
+            updateModelSelect();
+            updatePromptsList();
+            updatePromptsSelect();
+            renderConversation();
+            renderHistory();
+        }
+
+        function loadFromStorage() {
+            const storedModels = localStorage.getItem('models');
+            if (storedModels) {
+                try {
+                    models = JSON.parse(storedModels);
+                } catch (e) {
+                    console.error('Error loading models:', e);
+                }
+            }
+
+            const storedChains = localStorage.getItem('chains');
+            if (storedChains) {
+                try {
+                    chains = JSON.parse(storedChains);
+                } catch (e) {
+                    console.error('Error loading chains:', e);
+                }
+            }
+
+            const storedPrompts = localStorage.getItem('systemPrompts');
+            if (storedPrompts) {
+                try {
+                    systemPrompts = JSON.parse(storedPrompts);
+                } catch (e) {
+                    console.error('Error loading prompts:', e);
+                }
+            }
+
+            activePromptId = localStorage.getItem('activePromptId');
+
+            const storedConversation = localStorage.getItem('currentConversation');
+            if (storedConversation) {
+                try {
+                    currentConversation = JSON.parse(storedConversation);
+                } catch (e) {
+                    console.error('Error loading conversation:', e);
+                }
+            }
+        }
+
+        function saveToStorage() {
+            localStorage.setItem('models', JSON.stringify(models));
+            localStorage.setItem('chains', JSON.stringify(chains));
+            localStorage.setItem('systemPrompts', JSON.stringify(systemPrompts));
+            localStorage.setItem('activePromptId', activePromptId || '');
+            localStorage.setItem('currentConversation', JSON.stringify(currentConversation));
+        }
+
+        function setupEventListeners() {
+            // Tab switching
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.dataset.tab;
+                    switchTab(tabName);
+                });
+            });
+
+            // Send message
+            document.getElementById('send-btn').addEventListener('click', sendMessage);
+            document.getElementById('message-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            // File upload
+            document.getElementById('file-input').addEventListener('change', handleFileUpload);
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+
+            if (tabName === 'settings') {
+                // Show config in new format
+                const config = {
+                    models: models,
+                    chains: chains
+                };
+                document.getElementById('models-config').value = JSON.stringify(config, null, 2);
+            }
+        }
+
+        function updateModelSelect() {
+            const select = document.getElementById('model-select');
+            select.innerHTML = '';
+            
+            if (models.length === 0 && chains.length === 0) {
+                const option = document.createElement('option');
+                option.textContent = 'No models configured';
+                option.disabled = true;
+                select.appendChild(option);
+                return;
+            }
+
+            // Add individual models
+            if (models.length > 0) {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = 'Single Models';
+                models.forEach((model, index) => {
+                    const option = document.createElement('option');
+                    option.value = `model:${index}`;
+                    option.textContent = model.name;
+                    optgroup.appendChild(option);
+                });
+                select.appendChild(optgroup);
+            }
+
+            // Add chains
+            if (chains.length > 0) {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = 'Chains & Multi-Model';
+                chains.forEach((chain, index) => {
+                    const option = document.createElement('option');
+                    option.value = `chain:${index}`;
+                    option.textContent = chain.name;
+                    optgroup.appendChild(option);
+                });
+                select.appendChild(optgroup);
+            }
+        }
+
+        function updatePromptsSelect() {
+            const select = document.getElementById('active-prompt-select');
+            select.innerHTML = '<option value="">None (no system prompt)</option>';
+            
+            systemPrompts.forEach(prompt => {
+                const option = document.createElement('option');
+                option.value = prompt.id;
+                option.textContent = prompt.name;
+                if (prompt.id === activePromptId) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+
+            select.onchange = (e) => {
+                activePromptId = e.target.value || null;
+                saveToStorage();
+            };
+        }
+
+        function updatePromptsList() {
+            const list = document.getElementById('prompts-list');
+            list.innerHTML = '';
+
+            if (systemPrompts.length === 0) {
+                list.innerHTML = '<p style="color: #888;">No saved prompts yet.</p>';
+                return;
+            }
+
+            systemPrompts.forEach(prompt => {
+                const div = document.createElement('div');
+                div.className = 'prompt-item';
+                div.innerHTML = `
+                    <h4>${escapeHtml(prompt.name)}</h4>
+                    <div style="white-space: pre-wrap; font-size: 13px; color: #aaa;">${escapeHtml(prompt.content.substring(0, 200))}${prompt.content.length > 200 ? '...' : ''}</div>
+                    <div class="prompt-actions">
+                        <button onclick="deletePrompt('${prompt.id}')">Delete</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function addSystemPrompt() {
+            const name = document.getElementById('new-prompt-name').value.trim();
+            const content = document.getElementById('new-prompt-content').value.trim();
+
+            if (!name || !content) {
+                alert('Please enter both name and content');
+                return;
+            }
+
+            const prompt = {
+                id: Date.now().toString(),
+                name,
+                content
+            };
+
+            systemPrompts.push(prompt);
+            saveToStorage();
+            updatePromptsList();
+            updatePromptsSelect();
+
+            document.getElementById('new-prompt-name').value = '';
+            document.getElementById('new-prompt-content').value = '';
+        }
+
+        function deletePrompt(id) {
+            if (!confirm('Delete this prompt?')) return;
+            systemPrompts = systemPrompts.filter(p => p.id !== id);
+            if (activePromptId === id) {
+                activePromptId = null;
+            }
+            saveToStorage();
+            updatePromptsList();
+            updatePromptsSelect();
+        }
+
+        function saveModelsConfig() {
+            const configText = document.getElementById('models-config').value;
+            try {
+                const parsed = JSON.parse(configText);
+                
+                // Support both old array format and new object format
+                if (Array.isArray(parsed)) {
+                    // Old format: just an array of models
+                    models = parsed;
+                    chains = [];
+                } else {
+                    // New format: object with models and chains
+                    models = parsed.models || [];
+                    chains = parsed.chains || [];
+                }
+                
+                saveToStorage();
+                updateModelSelect();
+                alert('Configuration saved!');
+            } catch (e) {
+                alert('Invalid JSON: ' + e.message);
+            }
+        }
+
+        async function handleFileUpload(e) {
+            const files = Array.from(e.target.files);
+            
+            for (const file of files) {
+                const base64 = await fileToBase64(file);
+                attachedFiles.push({
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    base64: base64.split(',')[1] // Remove data URL prefix
+                });
+            }
+
+            renderAttachedFiles();
+            e.target.value = ''; // Reset input
+        }
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderAttachedFiles() {
+            const container = document.getElementById('attached-files');
+            container.innerHTML = '';
+
+            attachedFiles.forEach((file, index) => {
+                const div = document.createElement('div');
+                div.className = 'attached-file';
+                div.innerHTML = `
+                    <span>${escapeHtml(file.name)} (${formatFileSize(file.size)})</span>
+                    <button onclick="removeAttachedFile(${index})">✕</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function removeAttachedFile(index) {
+            attachedFiles.splice(index, 1);
+            renderAttachedFiles();
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        async function sendMessage() {
+            if (isStreaming) return;
+
+            const input = document.getElementById('message-input');
+            const messageText = input.value.trim();
+            
+            if (!messageText && attachedFiles.length === 0) return;
+            if (models.length === 0 && chains.length === 0) {
+                alert('Please configure at least one model or chain in Settings');
+                return;
+            }
+
+            const selectValue = document.getElementById('model-select').value;
+            const [type, index] = selectValue.split(':');
+            
+            if (!selectValue) {
+                alert('Please select a model or chain');
+                return;
+            }
+
+            const userMessage = {
+                role: 'user',
+                content: messageText,
+                files: attachedFiles.length > 0 ? [...attachedFiles] : null,
+                timestamp: Date.now()
+            };
+
+            if (editingMessageIndex !== null) {
+                // Replace message and truncate conversation
+                currentConversation = currentConversation.slice(0, editingMessageIndex);
+                currentConversation.push(userMessage);
+                editingMessageIndex = null;
+            } else {
+                currentConversation.push(userMessage);
+            }
+
+            input.value = '';
+            attachedFiles = [];
+            renderAttachedFiles();
+            renderConversation();
+            saveToStorage();
+
+            // Start streaming response
+            isStreaming = true;
+            document.getElementById('send-btn').disabled = true;
+
+            try {
+                if (type === 'model') {
+                    const model = models[parseInt(index)];
+                    const assistantMessage = {
+                        role: 'assistant',
+                        content: '',
+                        thinking: '',
+                        timestamp: Date.now()
+                    };
+                    currentConversation.push(assistantMessage);
+                    await streamResponse(model, assistantMessage);
+                } else if (type === 'chain') {
+                    const chain = chains[parseInt(index)];
+                    await executeChain(chain, userMessage);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                const errorMessage = {
+                    role: 'assistant',
+                    content: 'Error: ' + error.message,
+                    timestamp: Date.now()
+                };
+                currentConversation.push(errorMessage);
+                renderConversation();
+            }
+
+            isStreaming = false;
+            document.getElementById('send-btn').disabled = false;
+            saveToStorage();
+        }
+
+        async function streamResponse(model, assistantMessage) {
+            const messages = buildMessagesForAPI(model, assistantMessage);
+            
+            if (model.template === 'anthropic') {
+                await streamAnthropic(model, messages, assistantMessage);
+            } else if (model.template === 'openai') {
+                await streamOpenAI(model, messages, assistantMessage);
+            } else {
+                await streamCustom(model, messages, assistantMessage);
+            }
+        }
+
+        function buildMessagesForAPI(model, excludeMessage = null) {
+            const messages = [];
+            
+            for (const msg of currentConversation) {
+                if (msg === excludeMessage) continue; // Skip the message we're currently generating
+                
+                if (msg.role === 'user') {
+                    const content = [];
+                    
+                    if (msg.content) {
+                        content.push({ type: 'text', text: msg.content });
+                    }
+
+                    if (msg.files) {
+                        for (const file of msg.files) {
+                            if (file.type.startsWith('image/')) {
+                                content.push({
+                                    type: 'image',
+                                    source: {
+                                        type: 'base64',
+                                        media_type: file.type,
+                                        data: file.base64
+                                    }
+                                });
+                            } else if (file.type === 'application/pdf' && model.template === 'anthropic') {
+                                content.push({
+                                    type: 'document',
+                                    source: {
+                                        type: 'base64',
+                                        media_type: 'application/pdf',
+                                        data: file.base64
+                                    }
+                                });
+                            } else {
+                                // For OpenAI or other unsupported file types, just mention it
+                                content.push({
+                                    type: 'text',
+                                    text: `[Attached file: ${file.name}]`
+                                });
+                            }
+                        }
+                    }
+
+                    messages.push({
+                        role: 'user',
+                        content: content.length === 1 && content[0].type === 'text' ? content[0].text : content
+                    });
+                } else if (msg.role === 'assistant') {
+                    messages.push({
+                        role: 'assistant',
+                        content: msg.content
+                    });
+                }
+            }
+
+            return messages;
+        }
+
+        async function streamAnthropic(model, messages, assistantMessage) {
+            const body = {
+                model: model.model_id,
+                max_tokens: model.max_tokens || 8096,
+                messages: messages,
+                stream: true
+            };
+
+            if (activePromptId) {
+                const prompt = systemPrompts.find(p => p.id === activePromptId);
+                if (prompt) {
+                    body.system = prompt.content;
+                }
+            }
+
+            console.log('Anthropic request:', { endpoint: model.endpoint, body });
+
+            let response;
+            try {
+                response = await fetch(model.endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'anthropic-version': '2023-06-01',
+                        'x-api-key': model.api_key,
+                        ...(model.headers || {})
+                    },
+                    body: JSON.stringify(body)
+                });
+            } catch (e) {
+                console.error('Fetch error:', e);
+                throw new Error(`Network error: ${e.message}. Check your internet connection and API endpoint.`);
+            }
+
+            if (!response.ok) {
+                let errorText;
+                try {
+                    errorText = await response.text();
+                    console.error('API error response:', errorText);
+                } catch (e) {
+                    errorText = 'Could not read error response';
+                }
+                throw new Error(`API error ${response.status}: ${errorText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+                        
+                        try {
+                            const parsed = JSON.parse(data);
+                            
+                            if (parsed.type === 'content_block_start') {
+                                if (parsed.content_block?.type === 'thinking') {
+                                    assistantMessage.hasThinking = true;
+                                }
+                            } else if (parsed.type === 'content_block_delta') {
+                                if (parsed.delta?.type === 'thinking_delta') {
+                                    assistantMessage.thinking += parsed.delta.thinking || '';
+                                } else if (parsed.delta?.type === 'text_delta') {
+                                    assistantMessage.content += parsed.delta.text || '';
+                                }
+                                renderConversation();
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE:', e, 'Line:', line);
+                        }
+                    }
+                }
+            }
+        }
+
+        async function streamOpenAI(model, messages, assistantMessage) {
+            const body = {
+                model: model.model_id,
+                messages: messages,
+                stream: true
+            };
+
+            if (activePromptId) {
+                const prompt = systemPrompts.find(p => p.id === activePromptId);
+                if (prompt) {
+                    body.messages.unshift({ role: 'system', content: prompt.content });
+                }
+            }
+
+            console.log('OpenAI request:', { endpoint: model.endpoint, body });
+
+            let response;
+            try {
+                response = await fetch(model.endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${model.api_key}`,
+                        ...(model.headers || {})
+                    },
+                    body: JSON.stringify(body)
+                });
+            } catch (e) {
+                console.error('Fetch error:', e);
+                throw new Error(`Network error: ${e.message}. Check your internet connection and API endpoint.`);
+            }
+
+            if (!response.ok) {
+                let errorText;
+                try {
+                    errorText = await response.text();
+                    console.error('API error response:', errorText);
+                } catch (e) {
+                    errorText = 'Could not read error response';
+                }
+                throw new Error(`API error ${response.status}: ${errorText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+                        
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta?.content;
+                            if (delta) {
+                                assistantMessage.content += delta;
+                                renderConversation();
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE:', e, 'Line:', line);
+                        }
+                    }
+                }
+            }
+        }
+
+        async function streamCustom(model, messages, assistantMessage) {
+            // For custom endpoints, try OpenAI format first
+            await streamOpenAI(model, messages, assistantMessage);
+        }
+
+        async function executeChain(chain, userMessage) {
+            if (chain.type === 'chain') {
+                await executeSequentialChain(chain, userMessage);
+            } else if (chain.type === 'debate') {
+                await executeDebate(chain, userMessage);
+            } else if (chain.type === 'parallel') {
+                await executeParallel(chain, userMessage);
+            }
+        }
+
+        async function executeSequentialChain(chain, userMessage) {
+            let currentInput = userMessage.content;
+            let currentFiles = userMessage.files;
+
+            for (let i = 0; i < chain.steps.length; i++) {
+                const step = chain.steps[i];
+                const model = models[step.model_index];
+                
+                if (!model) {
+                    throw new Error(`Model at index ${step.model_index} not found`);
+                }
+
+                // Build messages for this step
+                const messages = [];
+                
+                // Add previous conversation context if this isn't the first step
+                if (i > 0) {
+                    // Include the original user message
+                    messages.push({
+                        role: 'user',
+                        content: userMessage.content
+                    });
+                    // Include previous step's output
+                    messages.push({
+                        role: 'assistant',
+                        content: currentInput
+                    });
+                    // Add current step's prompt
+                    if (step.system_prompt) {
+                        messages.push({
+                            role: 'user',
+                            content: step.system_prompt
+                        });
+                    }
+                } else {
+                    // First step: use original user message
+                    const content = [];
+                    if (step.system_prompt) {
+                        content.push({ type: 'text', text: step.system_prompt + '\n\n' + currentInput });
+                    } else {
+                        content.push({ type: 'text', text: currentInput });
+                    }
+
+                    if (step.pass_files && currentFiles) {
+                        for (const file of currentFiles) {
+                            if (file.type.startsWith('image/')) {
+                                content.push({
+                                    type: 'image',
+                                    source: {
+                                        type: 'base64',
+                                        media_type: file.type,
+                                        data: file.base64
+                                    }
+                                });
+                            }
+                        }
+                    }
+
+                    messages.push({
+                        role: 'user',
+                        content: content.length === 1 && content[0].type === 'text' ? content[0].text : content
+                    });
+                }
+
+                // Create assistant message for this step
+                const assistantMessage = {
+                    role: 'assistant',
+                    content: '',
+                    thinking: '',
+                    chainStep: `${chain.name} - Step ${i + 1}/${chain.steps.length}: ${model.name}`,
+                    timestamp: Date.now()
+                };
+                currentConversation.push(assistantMessage);
+                renderConversation();
+
+                // Stream this step
+                await streamSingleStep(model, messages, assistantMessage, step.system_prompt);
+                
+                // Use output as input for next step
+                currentInput = assistantMessage.content;
+                currentFiles = null; // Files only pass through first step
+            }
+        }
+
+        async function executeDebate(chain, userMessage) {
+            const debateModels = chain.models.map(idx => models[idx]);
+            const rounds = chain.rounds || 3;
+
+            for (let round = 0; round < rounds; round++) {
+                for (let i = 0; i < debateModels.length; i++) {
+                    const model = debateModels[i];
+                    
+                    if (!model) continue;
+
+                    // Create assistant message for this model
+                    const assistantMessage = {
+                        role: 'assistant',
+                        content: '',
+                        thinking: '',
+                        debateInfo: `${chain.name} - Round ${round + 1}/${rounds} - ${model.name}`,
+                        timestamp: Date.now()
+                    };
+                    currentConversation.push(assistantMessage);
+                    renderConversation();
+
+                    await streamResponse(model, assistantMessage);
+                }
+            }
+        }
+
+        async function executeParallel(chain, userMessage) {
+            const parallelModels = chain.models.map(idx => models[idx]);
+            const responses = [];
+
+            for (const model of parallelModels) {
+                if (!model) continue;
+
+                const assistantMessage = {
+                    role: 'assistant',
+                    content: '',
+                    thinking: '',
+                    parallelInfo: `${chain.name} - ${model.name}`,
+                    timestamp: Date.now()
+                };
+                currentConversation.push(assistantMessage);
+                responses.push({ model, assistantMessage });
+            }
+
+            renderConversation();
+
+            // Stream all in parallel
+            await Promise.all(responses.map(({ model, assistantMessage }) => 
+                streamResponse(model, assistantMessage)
+            ));
+        }
+
+        async function streamSingleStep(model, messages, assistantMessage, systemPromptOverride) {
+            if (model.template === 'anthropic') {
+                await streamAnthropicStep(model, messages, assistantMessage, systemPromptOverride);
+            } else if (model.template === 'openai') {
+                await streamOpenAIStep(model, messages, assistantMessage, systemPromptOverride);
+            } else {
+                await streamOpenAIStep(model, messages, assistantMessage, systemPromptOverride);
+            }
+        }
+
+        async function streamAnthropicStep(model, messages, assistantMessage, systemPromptOverride) {
+            const body = {
+                model: model.model_id,
+                max_tokens: model.max_tokens || 8096,
+                messages: messages,
+                stream: true
+            };
+
+            if (systemPromptOverride) {
+                body.system = systemPromptOverride;
+            } else if (activePromptId) {
+                const prompt = systemPrompts.find(p => p.id === activePromptId);
+                if (prompt) {
+                    body.system = prompt.content;
+                }
+            }
+
+            console.log('Anthropic chain step request:', { endpoint: model.endpoint, body });
+
+            let response;
+            try {
+                response = await fetch(model.endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'anthropic-version': '2023-06-01',
+                        'x-api-key': model.api_key,
+                        ...(model.headers || {})
+                    },
+                    body: JSON.stringify(body)
+                });
+            } catch (e) {
+                console.error('Fetch error:', e);
+                throw new Error(`Network error: ${e.message}`);
+            }
+
+            if (!response.ok) {
+                let errorText;
+                try {
+                    errorText = await response.text();
+                    console.error('API error response:', errorText);
+                } catch (e) {
+                    errorText = 'Could not read error response';
+                }
+                throw new Error(`API error ${response.status}: ${errorText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+                        
+                        try {
+                            const parsed = JSON.parse(data);
+                            
+                            if (parsed.type === 'content_block_start') {
+                                if (parsed.content_block?.type === 'thinking') {
+                                    assistantMessage.hasThinking = true;
+                                }
+                            } else if (parsed.type === 'content_block_delta') {
+                                if (parsed.delta?.type === 'thinking_delta') {
+                                    assistantMessage.thinking += parsed.delta.thinking || '';
+                                } else if (parsed.delta?.type === 'text_delta') {
+                                    assistantMessage.content += parsed.delta.text || '';
+                                }
+                                renderConversation();
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE:', e, 'Line:', line);
+                        }
+                    }
+                }
+            }
+        }
+
+        async function streamOpenAIStep(model, messages, assistantMessage, systemPromptOverride) {
+            const body = {
+                model: model.model_id,
+                messages: messages,
+                stream: true
+            };
+
+            if (systemPromptOverride) {
+                body.messages.unshift({ role: 'system', content: systemPromptOverride });
+            } else if (activePromptId) {
+                const prompt = systemPrompts.find(p => p.id === activePromptId);
+                if (prompt) {
+                    body.messages.unshift({ role: 'system', content: prompt.content });
+                }
+            }
+
+            console.log('OpenAI chain step request:', { endpoint: model.endpoint, body });
+
+            let response;
+            try {
+                response = await fetch(model.endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${model.api_key}`,
+                        ...(model.headers || {})
+                    },
+                    body: JSON.stringify(body)
+                });
+            } catch (e) {
+                console.error('Fetch error:', e);
+                throw new Error(`Network error: ${e.message}`);
+            }
+
+            if (!response.ok) {
+                let errorText;
+                try {
+                    errorText = await response.text();
+                    console.error('API error response:', errorText);
+                } catch (e) {
+                    errorText = 'Could not read error response';
+                }
+                throw new Error(`API error ${response.status}: ${errorText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+                        
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta?.content;
+                            if (delta) {
+                                assistantMessage.content += delta;
+                                renderConversation();
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE:', e, 'Line:', line);
+                        }
+                    }
+                }
+            }
+        }
+
+        function renderConversation() {
+            const container = document.getElementById('chat-messages');
+            container.innerHTML = '';
+
+            currentConversation.forEach((msg, index) => {
+                if (msg.role === 'user') {
+                    const div = document.createElement('div');
+                    div.className = 'message user';
+                    
+                    let contentHtml = `<div class="message-content">${escapeHtml(msg.content)}</div>`;
+                    
+                    if (msg.files) {
+                        for (const file of msg.files) {
+                            if (file.type.startsWith('image/')) {
+                                contentHtml += `<div class="file-preview"><img src="data:${file.type};base64,${file.base64}" alt="${escapeHtml(file.name)}"></div>`;
+                            } else if (file.type.startsWith('video/')) {
+                                contentHtml += `<div class="file-preview"><video controls src="data:${file.type};base64,${file.base64}"></video></div>`;
+                            } else {
+                                contentHtml += `<div class="file-info">📎 ${escapeHtml(file.name)} (${formatFileSize(file.size)})</div>`;
+                            }
+                        }
+                    }
+
+                    contentHtml += `<div class="message-actions">
+                        <button onclick="editMessage(${index})">Edit & Resend</button>
+                    </div>`;
+                    
+                    div.innerHTML = contentHtml;
+                    container.appendChild(div);
+                } else if (msg.role === 'assistant') {
+                    // Show chain/debate/parallel info if present
+                    if (msg.chainStep || msg.debateInfo || msg.parallelInfo) {
+                        const infoDiv = document.createElement('div');
+                        infoDiv.style.cssText = 'color: #4a9eff; font-size: 12px; margin-bottom: 4px; font-weight: 600;';
+                        infoDiv.textContent = msg.chainStep || msg.debateInfo || msg.parallelInfo;
+                        container.appendChild(infoDiv);
+                    }
+
+                    if (msg.thinking && msg.hasThinking) {
+                        const thinkingDiv = document.createElement('div');
+                        thinkingDiv.className = 'message thinking';
+                        thinkingDiv.innerHTML = `<div class="message-content">${escapeHtml(msg.thinking)}</div>`;
+                        container.appendChild(thinkingDiv);
+                    }
+
+                    const div = document.createElement('div');
+                    div.className = 'message assistant';
+                    const rendered = renderMarkdownWithLatex(msg.content);
+                    div.innerHTML = `<div class="message-content">${rendered}</div>`;
+                    container.appendChild(div);
+                }
+            });
+
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function editMessage(index) {
+            const msg = currentConversation[index];
+            document.getElementById('message-input').value = msg.content;
+            editingMessageIndex = index;
+            
+            // Load files if any
+            if (msg.files) {
+                attachedFiles = [...msg.files];
+                renderAttachedFiles();
+            }
+        }
+
+        function renderMarkdownWithLatex(text) {
+            if (!text) return '';
+
+            // Escape HTML first
+            let escaped = escapeHtml(text);
+
+            // Render inline LaTeX ($ ... $)
+            escaped = escaped.replace(/\$([^\$]+)\$/g, (match, latex) => {
+                try {
+                    return katex.renderToString(latex, { throwOnError: false, displayMode: false });
+                } catch (e) {
+                    return match;
+                }
+            });
+
+            // Render block LaTeX ($$ ... $$)
+            escaped = escaped.replace(/\$\$([^\$]+)\$\$/g, (match, latex) => {
+                try {
+                    return katex.renderToString(latex, { throwOnError: false, displayMode: true });
+                } catch (e) {
+                    return match;
+                }
+            });
+
+            // Simple markdown: **bold**, *italic*, `code`, ```code blocks```
+            escaped = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            escaped = escaped.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            escaped = escaped.replace(/`([^`]+)`/g, '<code style="background: #3a3a3a; padding: 2px 6px; border-radius: 3px;">$1</code>');
+            
+            // Code blocks
+            escaped = escaped.replace(/```([\s\S]+?)```/g, '<pre style="background: #2a2a2a; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 8px 0;">$1</pre>');
+
+            return escaped;
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('history-list');
+            
+            if (currentConversation.length === 0) {
+                list.innerHTML = '<p style="color: #888;">No conversation history yet.</p>';
+                return;
+            }
+
+            const summary = currentConversation.slice(0, 2).map(msg => {
+                if (msg.role === 'user') return 'User: ' + msg.content.substring(0, 50);
+                return 'Assistant: ' + msg.content.substring(0, 50);
+            }).join('\n');
+
+            list.innerHTML = `
+                <div class="history-item">
+                    <h4>Current Conversation</h4>
+                    <div style="white-space: pre-wrap; font-size: 13px; color: #aaa;">${escapeHtml(summary)}...</div>
+                    <div style="color: #666; font-size: 12px; margin-top: 8px;">${currentConversation.length} messages</div>
+                    <div class="history-actions">
+                        <button onclick="exportConversation()">Export</button>
+                        <button onclick="clearConversation()">Clear</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function clearConversation() {
+            if (!confirm('Clear current conversation?')) return;
+            currentConversation = [];
+            saveToStorage();
+            renderConversation();
+            renderHistory();
+        }
+
+        function clearHistory() {
+            clearConversation();
+        }
+
+        function exportConversation() {
+            const data = {
+                conversation: currentConversation,
+                timestamp: new Date().toISOString()
+            };
+            downloadJSON(data, `conversation-${Date.now()}.json`);
+        }
+
+        function exportData() {
+            const data = {
+                models,
+                chains,
+                systemPrompts,
+                activePromptId,
+                currentConversation,
+                exportDate: new Date().toISOString()
+            };
+            downloadJSON(data, `api-chat-backup-${Date.now()}.json`);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    if (data.models) models = data.models;
+                    if (data.chains) chains = data.chains;
+                    if (data.systemPrompts) systemPrompts = data.systemPrompts;
+                    if (data.activePromptId) activePromptId = data.activePromptId;
+                    if (data.currentConversation) currentConversation = data.currentConversation;
+
+                    saveToStorage();
+                    init();
+                    alert('Data imported successfully!');
+                } catch (e) {
+                    alert('Error importing data: ' + e.message);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function downloadJSON(data, filename) {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>
