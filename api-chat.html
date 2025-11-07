@@ -388,54 +388,19 @@
         <div class="settings-container">
             <div class="settings-section">
                 <h3>Add New Model</h3>
-                <input type="text" id="new-model-name" placeholder="Model name (e.g., Claude 3.5 Sonnet)" style="margin-bottom: 8px;">
+                <input type="text" id="new-model-name" placeholder="Model name (e.g., My Claude Model)" style="margin-bottom: 8px;">
                 <select id="new-model-template" style="margin-bottom: 8px;">
+                    <option value="">Select a template...</option>
                     <option value="anthropic">Anthropic (Claude)</option>
                     <option value="openai">OpenAI (GPT)</option>
                     <option value="google">Google (Gemini)</option>
                 </select>
-                <input type="text" id="new-model-endpoint" placeholder="API endpoint URL" style="margin-bottom: 8px;">
-                <input type="text" id="new-model-id" placeholder="Model ID" style="margin-bottom: 8px;">
-                <input type="password" id="new-model-key" placeholder="API key" style="margin-bottom: 8px;">
-                <input type="number" id="new-model-tokens" placeholder="Max tokens (optional, default: 8096)" style="margin-bottom: 8px;">
+                <textarea id="new-model-config" placeholder="Model configuration will appear here when you select a template..." style="min-height: 250px;"></textarea>
                 <button class="primary" onclick="addModel()">Add Model</button>
             </div>
             <div class="settings-section">
                 <h3>Saved Models</h3>
                 <div id="models-list"></div>
-            </div>
-            <div class="settings-section">
-                <h3>Advanced: JSON Configuration</h3>
-                <p style="margin-bottom: 8px; color: #888; font-size: 13px;">Edit models as JSON (for advanced users)</p>
-                <textarea id="models-config"></textarea>
-                <button class="primary" onclick="saveModelsConfig()">Save JSON</button>
-            </div>
-            <div class="settings-section">
-                <h3>Example Configuration</h3>
-                <pre style="background: #2a2a2a; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px;">[
-  {
-    "name": "Claude 3.5 Sonnet",
-    "template": "anthropic",
-    "endpoint": "https://api.anthropic.com/v1/messages",
-    "model_id": "claude-3-5-sonnet-20241022",
-    "api_key": "sk-ant-your-api-key-here",
-    "max_tokens": 8096
-  },
-  {
-    "name": "GPT-4",
-    "template": "openai",
-    "endpoint": "https://api.openai.com/v1/chat/completions",
-    "model_id": "gpt-4-turbo",
-    "api_key": "sk-your-openai-key-here"
-  },
-  {
-    "name": "Gemini 1.5 Pro",
-    "template": "google",
-    "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:streamGenerateContent",
-    "model_id": "gemini-1.5-pro",
-    "api_key": "your-google-api-key-here"
-  }
-]</pre>
             </div>
             <div class="settings-section">
                 <h3>Export/Import Data</h3>
@@ -521,22 +486,34 @@
             // File upload
             document.getElementById('file-input').addEventListener('change', handleFileUpload);
 
-            // Template selector auto-fill
+            // Template selector - show template config
             document.getElementById('new-model-template').addEventListener('change', (e) => {
                 const template = e.target.value;
-                const endpointInput = document.getElementById('new-model-endpoint');
-                const modelIdInput = document.getElementById('new-model-id');
+                const configTextarea = document.getElementById('new-model-config');
 
-                if (template === 'anthropic') {
-                    endpointInput.value = 'https://api.anthropic.com/v1/messages';
-                    modelIdInput.placeholder = 'e.g., claude-3-5-sonnet-20241022';
-                } else if (template === 'openai') {
-                    endpointInput.value = 'https://api.openai.com/v1/chat/completions';
-                    modelIdInput.placeholder = 'e.g., gpt-4-turbo';
-                } else if (template === 'google') {
-                    endpointInput.value = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:streamGenerateContent';
-                    modelIdInput.placeholder = 'e.g., gemini-1.5-pro';
-                }
+                const templates = {
+                    anthropic: `{
+  "template": "anthropic",
+  "endpoint": "https://api.anthropic.com/v1/messages",
+  "model_id": "claude-3-5-sonnet-20241022",
+  "api_key": "sk-ant-your-api-key-here",
+  "max_tokens": 8096
+}`,
+                    openai: `{
+  "template": "openai",
+  "endpoint": "https://api.openai.com/v1/chat/completions",
+  "model_id": "gpt-4-turbo",
+  "api_key": "sk-your-openai-key-here"
+}`,
+                    google: `{
+  "template": "google",
+  "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:streamGenerateContent",
+  "model_id": "gemini-1.5-pro",
+  "api_key": "your-google-api-key-here"
+}`
+                };
+
+                configTextarea.value = templates[template] || '';
             });
         }
 
@@ -548,7 +525,6 @@
             document.getElementById(`${tabName}-tab`).classList.add('active');
 
             if (tabName === 'settings') {
-                document.getElementById('models-config').value = JSON.stringify(models, null, 2);
                 updateModelsList();
             }
         }
@@ -653,40 +629,46 @@
 
         function addModel() {
             const name = document.getElementById('new-model-name').value.trim();
-            const template = document.getElementById('new-model-template').value;
-            const endpoint = document.getElementById('new-model-endpoint').value.trim();
-            const model_id = document.getElementById('new-model-id').value.trim();
-            const api_key = document.getElementById('new-model-key').value.trim();
-            const max_tokens = document.getElementById('new-model-tokens').value.trim();
+            const configText = document.getElementById('new-model-config').value.trim();
 
-            if (!name || !endpoint || !model_id || !api_key) {
-                alert('Please fill in name, endpoint, model ID, and API key');
+            if (!name) {
+                alert('Please enter a model name');
                 return;
             }
 
-            const model = {
-                name,
-                template,
-                endpoint,
-                model_id,
-                api_key
-            };
-
-            if (max_tokens) {
-                model.max_tokens = parseInt(max_tokens);
+            if (!configText) {
+                alert('Please select a template or enter model configuration');
+                return;
             }
 
-            models.push(model);
-            saveToStorage();
-            updateModelSelect();
-            updateModelsList();
+            try {
+                const config = JSON.parse(configText);
 
-            // Clear form
-            document.getElementById('new-model-name').value = '';
-            document.getElementById('new-model-endpoint').value = '';
-            document.getElementById('new-model-id').value = '';
-            document.getElementById('new-model-key').value = '';
-            document.getElementById('new-model-tokens').value = '';
+                // Validate required fields
+                if (!config.template || !config.endpoint || !config.model_id || !config.api_key) {
+                    alert('Configuration must include: template, endpoint, model_id, and api_key');
+                    return;
+                }
+
+                const model = {
+                    name,
+                    ...config
+                };
+
+                models.push(model);
+                saveToStorage();
+                updateModelSelect();
+                updateModelsList();
+
+                // Clear form
+                document.getElementById('new-model-name').value = '';
+                document.getElementById('new-model-template').value = '';
+                document.getElementById('new-model-config').value = '';
+
+                alert('Model added successfully!');
+            } catch (e) {
+                alert('Invalid JSON configuration: ' + e.message);
+            }
         }
 
         function deleteModel(index) {
@@ -709,40 +691,27 @@
             models.forEach((model, index) => {
                 const div = document.createElement('div');
                 div.className = 'prompt-item';
+
+                // Create config object without the name field for display
+                const { name, ...config } = model;
+                const configJson = JSON.stringify(config, null, 2);
+
                 div.innerHTML = `
                     <h4>${escapeHtml(model.name)}</h4>
-                    <div style="font-size: 13px; color: #aaa; margin-bottom: 4px;">
-                        <strong>Template:</strong> ${escapeHtml(model.template)}<br>
-                        <strong>Model ID:</strong> ${escapeHtml(model.model_id)}<br>
-                        <strong>Endpoint:</strong> ${escapeHtml(model.endpoint.substring(0, 50))}${model.endpoint.length > 50 ? '...' : ''}
+                    <div style="font-size: 13px; color: #aaa; margin-bottom: 8px;">
+                        <strong>Template:</strong> ${escapeHtml(model.template)} |
+                        <strong>Model ID:</strong> ${escapeHtml(model.model_id)}
                     </div>
+                    <details style="margin-bottom: 8px;">
+                        <summary style="cursor: pointer; color: #4a9eff; font-size: 13px;">View Configuration</summary>
+                        <pre style="background: #1a1a1a; padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 12px; margin-top: 8px;">${escapeHtml(configJson)}</pre>
+                    </details>
                     <div class="prompt-actions">
                         <button onclick="deleteModel(${index})">Delete</button>
                     </div>
                 `;
                 list.appendChild(div);
             });
-        }
-
-        function saveModelsConfig() {
-            const configText = document.getElementById('models-config').value;
-            try {
-                const parsed = JSON.parse(configText);
-
-                if (Array.isArray(parsed)) {
-                    models = parsed;
-                } else {
-                    alert('Configuration must be an array of models');
-                    return;
-                }
-
-                saveToStorage();
-                updateModelSelect();
-                updateModelsList();
-                alert('Configuration saved!');
-            } catch (e) {
-                alert('Invalid JSON: ' + e.message);
-            }
         }
 
         async function handleFileUpload(e) {
