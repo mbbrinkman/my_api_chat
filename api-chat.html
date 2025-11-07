@@ -338,6 +338,7 @@
         <button class="tab active" data-tab="chat">Chat</button>
         <button class="tab" data-tab="prompts">System Prompts</button>
         <button class="tab" data-tab="history">History</button>
+        <button class="tab" data-tab="api-keys">API Keys</button>
         <button class="tab" data-tab="settings">Settings</button>
     </div>
 
@@ -384,58 +385,48 @@
         </div>
     </div>
 
+    <div id="api-keys-tab" class="tab-content">
+        <div class="settings-container">
+            <div class="settings-section">
+                <h3>Add API Key</h3>
+                <input type="text" id="new-key-name" placeholder="Key name (e.g., My Anthropic Key, Work OpenAI)" style="margin-bottom: 8px;">
+                <select id="new-key-provider" style="margin-bottom: 8px;">
+                    <option value="">Select provider...</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="google">Google</option>
+                    <option value="xai">xAI</option>
+                    <option value="openrouter">OpenRouter</option>
+                </select>
+                <input type="password" id="new-key-value" placeholder="API key" style="margin-bottom: 8px;">
+                <button class="primary" onclick="addApiKey()">Add API Key</button>
+            </div>
+            <div class="settings-section">
+                <h3>Saved API Keys</h3>
+                <div id="api-keys-list"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="settings-tab" class="tab-content">
         <div class="settings-container">
             <div class="settings-section">
                 <h3>Add New Model</h3>
-                <input type="text" id="new-model-name" placeholder="Model name (e.g., Claude 3.5 Sonnet)" style="margin-bottom: 8px;">
+                <input type="text" id="new-model-name" placeholder="Model name (e.g., My Claude Model)" style="margin-bottom: 8px;">
                 <select id="new-model-template" style="margin-bottom: 8px;">
+                    <option value="">Select a template...</option>
                     <option value="anthropic">Anthropic (Claude)</option>
                     <option value="openai">OpenAI (GPT)</option>
                     <option value="google">Google (Gemini)</option>
+                    <option value="xai">xAI (Grok)</option>
+                    <option value="openrouter">OpenRouter</option>
                 </select>
-                <input type="text" id="new-model-endpoint" placeholder="API endpoint URL" style="margin-bottom: 8px;">
-                <input type="text" id="new-model-id" placeholder="Model ID" style="margin-bottom: 8px;">
-                <input type="password" id="new-model-key" placeholder="API key" style="margin-bottom: 8px;">
-                <input type="number" id="new-model-tokens" placeholder="Max tokens (optional, default: 8096)" style="margin-bottom: 8px;">
+                <textarea id="new-model-config" placeholder="Model configuration will appear here when you select a template..." style="min-height: 250px;"></textarea>
                 <button class="primary" onclick="addModel()">Add Model</button>
             </div>
             <div class="settings-section">
                 <h3>Saved Models</h3>
                 <div id="models-list"></div>
-            </div>
-            <div class="settings-section">
-                <h3>Advanced: JSON Configuration</h3>
-                <p style="margin-bottom: 8px; color: #888; font-size: 13px;">Edit models as JSON (for advanced users)</p>
-                <textarea id="models-config"></textarea>
-                <button class="primary" onclick="saveModelsConfig()">Save JSON</button>
-            </div>
-            <div class="settings-section">
-                <h3>Example Configuration</h3>
-                <pre style="background: #2a2a2a; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px;">[
-  {
-    "name": "Claude 3.5 Sonnet",
-    "template": "anthropic",
-    "endpoint": "https://api.anthropic.com/v1/messages",
-    "model_id": "claude-3-5-sonnet-20241022",
-    "api_key": "sk-ant-your-api-key-here",
-    "max_tokens": 8096
-  },
-  {
-    "name": "GPT-4",
-    "template": "openai",
-    "endpoint": "https://api.openai.com/v1/chat/completions",
-    "model_id": "gpt-4-turbo",
-    "api_key": "sk-your-openai-key-here"
-  },
-  {
-    "name": "Gemini 1.5 Pro",
-    "template": "google",
-    "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:streamGenerateContent",
-    "model_id": "gemini-1.5-pro",
-    "api_key": "your-google-api-key-here"
-  }
-]</pre>
             </div>
             <div class="settings-section">
                 <h3>Export/Import Data</h3>
@@ -449,6 +440,7 @@
     <script>
         // State
         let models = [];
+        let apiKeys = [];
         let systemPrompts = [];
         let activePromptId = null;
         let currentConversation = [];
@@ -462,6 +454,7 @@
             setupEventListeners();
             updateModelSelect();
             updateModelsList();
+            updateApiKeysList();
             updatePromptsList();
             updatePromptsSelect();
             renderConversation();
@@ -475,6 +468,15 @@
                     models = JSON.parse(storedModels);
                 } catch (e) {
                     console.error('Error loading models:', e);
+                }
+            }
+
+            const storedApiKeys = localStorage.getItem('apiKeys');
+            if (storedApiKeys) {
+                try {
+                    apiKeys = JSON.parse(storedApiKeys);
+                } catch (e) {
+                    console.error('Error loading API keys:', e);
                 }
             }
 
@@ -501,6 +503,7 @@
 
         function saveToStorage() {
             localStorage.setItem('models', JSON.stringify(models));
+            localStorage.setItem('apiKeys', JSON.stringify(apiKeys));
             localStorage.setItem('systemPrompts', JSON.stringify(systemPrompts));
             localStorage.setItem('activePromptId', activePromptId || '');
             localStorage.setItem('currentConversation', JSON.stringify(currentConversation));
@@ -521,22 +524,163 @@
             // File upload
             document.getElementById('file-input').addEventListener('change', handleFileUpload);
 
-            // Template selector auto-fill
+            // Template selector - show template config
             document.getElementById('new-model-template').addEventListener('change', (e) => {
                 const template = e.target.value;
-                const endpointInput = document.getElementById('new-model-endpoint');
-                const modelIdInput = document.getElementById('new-model-id');
+                const configTextarea = document.getElementById('new-model-config');
 
-                if (template === 'anthropic') {
-                    endpointInput.value = 'https://api.anthropic.com/v1/messages';
-                    modelIdInput.placeholder = 'e.g., claude-3-5-sonnet-20241022';
-                } else if (template === 'openai') {
-                    endpointInput.value = 'https://api.openai.com/v1/chat/completions';
-                    modelIdInput.placeholder = 'e.g., gpt-4-turbo';
-                } else if (template === 'google') {
-                    endpointInput.value = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:streamGenerateContent';
-                    modelIdInput.placeholder = 'e.g., gemini-1.5-pro';
-                }
+                // Get available API keys for the selected template
+                const templateKeys = apiKeys.filter(k => k.provider === template);
+                const apiKeyRef = templateKeys.length > 0
+                    ? `"api_key_id": "${templateKeys[0].id}"  // Using: ${templateKeys[0].name}`
+                    : `"api_key": "your-api-key-here"  // Or add an API key in the API Keys tab`;
+
+                const templates = {
+                    anthropic: `{
+  "template": "anthropic",
+  "endpoint": "https://api.anthropic.com/v1/messages",
+  "model_id": "claude-3-5-sonnet-20241022",
+  ${apiKeyRef},
+
+  // Sampling parameters
+  "max_tokens": 8096,
+  "temperature": 1.0,  // 0.0-1.0, higher = more random
+  "top_p": 1.0,  // 0.0-1.0, nucleus sampling
+  "top_k": null,  // Only sample from top K options
+  "stop_sequences": null,  // Array of strings to stop generation
+
+  // Metadata (for tracking/filtering)
+  "metadata": null,  // {"user_id": "123"}
+
+  // Custom headers
+  "headers": {},  // {"X-Custom-Header": "value"}
+
+  // Beta features (extended thinking, prompt caching, etc.)
+  "beta_headers": []  // ["prompt-caching-2024-07-31", "max-tokens-3-5-sonnet-2024-07-15"]
+}`,
+                    openai: `{
+  "template": "openai",
+  "endpoint": "https://api.openai.com/v1/chat/completions",
+  "model_id": "gpt-4-turbo",
+  ${apiKeyRef},
+
+  // Sampling parameters
+  "max_tokens": null,  // Max tokens to generate
+  "temperature": 1.0,  // 0.0-2.0, higher = more random
+  "top_p": 1.0,  // 0.0-1.0, nucleus sampling
+  "frequency_penalty": 0,  // -2.0 to 2.0, penalize frequent tokens
+  "presence_penalty": 0,  // -2.0 to 2.0, penalize tokens that appeared
+  "stop": null,  // String or array of strings to stop at
+
+  // Response options
+  "n": 1,  // Number of completions to generate
+  "stream_options": null,  // {"include_usage": true}
+  "response_format": null,  // {"type": "json_object"} for JSON mode
+  "seed": null,  // Integer for deterministic sampling
+  "logprobs": null,  // Return log probabilities
+  "top_logprobs": null,  // Number of most likely tokens to return (0-20)
+  "user": null,  // Unique identifier for end-user
+
+  // Function calling
+  "tools": null,  // [{"type": "function", "function": {...}}]
+  "tool_choice": null,  // "none", "auto", or {"type": "function", "function": {"name": "..."}}
+
+  // Custom headers
+  "headers": {}  // {"X-Custom-Header": "value"}
+}`,
+                    google: `{
+  "template": "google",
+  "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:streamGenerateContent",
+  "model_id": "gemini-1.5-pro",
+  ${apiKeyRef},
+
+  // Sampling parameters
+  "temperature": 1.0,  // 0.0-2.0, higher = more random
+  "top_p": 1.0,  // 0.0-1.0, nucleus sampling
+  "top_k": null,  // Only sample from top K options
+  "max_output_tokens": null,  // Max tokens to generate
+  "candidate_count": 1,  // Number of responses to generate
+  "stop_sequences": null,  // Array of strings to stop generation
+
+  // Safety settings
+  "safety_settings": null,  // [{"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}]
+
+  // Function calling
+  "tools": null,  // [{"function_declarations": [{...}]}]
+  "tool_config": null,  // {"function_calling_config": {"mode": "AUTO"}}
+
+  // Custom headers
+  "headers": {}  // {"X-Custom-Header": "value"}
+}`,
+                    xai: `{
+  "template": "xai",
+  "endpoint": "https://api.x.ai/v1/chat/completions",
+  "model_id": "grok-beta",
+  ${apiKeyRef},
+
+  // Sampling parameters
+  "max_tokens": null,  // Max tokens to generate
+  "temperature": 1.0,  // 0.0-2.0, higher = more random
+  "top_p": 1.0,  // 0.0-1.0, nucleus sampling
+  "frequency_penalty": 0,  // -2.0 to 2.0, penalize frequent tokens
+  "presence_penalty": 0,  // -2.0 to 2.0, penalize tokens that appeared
+  "stop": null,  // String or array of strings to stop at
+
+  // Response options
+  "n": 1,  // Number of completions to generate
+  "stream_options": null,  // {"include_usage": true}
+  "response_format": null,  // {"type": "json_object"} for JSON mode
+  "seed": null,  // Integer for deterministic sampling
+  "logprobs": null,  // Return log probabilities
+  "top_logprobs": null,  // Number of most likely tokens to return (0-20)
+  "user": null,  // Unique identifier for end-user
+
+  // Function calling
+  "tools": null,  // [{"type": "function", "function": {...}}]
+  "tool_choice": null,  // "none", "auto", or {"type": "function", "function": {"name": "..."}}
+
+  // Custom headers
+  "headers": {}  // {"X-Custom-Header": "value"}
+}`,
+                    openrouter: `{
+  "template": "openrouter",
+  "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+  "model_id": "anthropic/claude-3.5-sonnet",
+  ${apiKeyRef},
+
+  // Sampling parameters
+  "max_tokens": null,  // Max tokens to generate
+  "temperature": 1.0,  // 0.0-2.0, higher = more random
+  "top_p": 1.0,  // 0.0-1.0, nucleus sampling
+  "frequency_penalty": 0,  // -2.0 to 2.0, penalize frequent tokens
+  "presence_penalty": 0,  // -2.0 to 2.0, penalize tokens that appeared
+  "stop": null,  // String or array of strings to stop at
+
+  // Response options
+  "n": 1,  // Number of completions to generate
+  "stream_options": null,  // {"include_usage": true}
+  "response_format": null,  // {"type": "json_object"} for JSON mode
+  "seed": null,  // Integer for deterministic sampling
+  "logprobs": null,  // Return log probabilities
+  "top_logprobs": null,  // Number of most likely tokens to return (0-20)
+  "user": null,  // Unique identifier for end-user
+
+  // Function calling
+  "tools": null,  // [{"type": "function", "function": {...}}]
+  "tool_choice": null,  // "none", "auto", or {"type": "function", "function": {"name": "..."}}
+
+  // OpenRouter-specific options
+  "transforms": null,  // ["middle-out"] for compression
+  "models": null,  // ["anthropic/claude-3.5-sonnet", "openai/gpt-4"] for fallbacks
+  "route": null,  // "fallback" routing strategy
+  "provider": null,  // {"order": ["Fireworks"], "allow_fallbacks": false}
+
+  // Custom headers
+  "headers": {}  // {"HTTP-Referer": "https://yoursite.com", "X-Title": "Your App"}
+}`
+                };
+
+                configTextarea.value = templates[template] || '';
             });
         }
 
@@ -548,8 +692,9 @@
             document.getElementById(`${tabName}-tab`).classList.add('active');
 
             if (tabName === 'settings') {
-                document.getElementById('models-config').value = JSON.stringify(models, null, 2);
                 updateModelsList();
+            } else if (tabName === 'api-keys') {
+                updateApiKeysList();
             }
         }
 
@@ -651,42 +796,110 @@
             updatePromptsSelect();
         }
 
-        function addModel() {
-            const name = document.getElementById('new-model-name').value.trim();
-            const template = document.getElementById('new-model-template').value;
-            const endpoint = document.getElementById('new-model-endpoint').value.trim();
-            const model_id = document.getElementById('new-model-id').value.trim();
-            const api_key = document.getElementById('new-model-key').value.trim();
-            const max_tokens = document.getElementById('new-model-tokens').value.trim();
+        function addApiKey() {
+            const name = document.getElementById('new-key-name').value.trim();
+            const provider = document.getElementById('new-key-provider').value;
+            const value = document.getElementById('new-key-value').value.trim();
 
-            if (!name || !endpoint || !model_id || !api_key) {
-                alert('Please fill in name, endpoint, model ID, and API key');
+            if (!name || !provider || !value) {
+                alert('Please fill in all fields');
                 return;
             }
 
-            const model = {
+            const apiKey = {
+                id: Date.now().toString(),
                 name,
-                template,
-                endpoint,
-                model_id,
-                api_key
+                provider,
+                value
             };
 
-            if (max_tokens) {
-                model.max_tokens = parseInt(max_tokens);
-            }
-
-            models.push(model);
+            apiKeys.push(apiKey);
             saveToStorage();
-            updateModelSelect();
-            updateModelsList();
+            updateApiKeysList();
 
             // Clear form
-            document.getElementById('new-model-name').value = '';
-            document.getElementById('new-model-endpoint').value = '';
-            document.getElementById('new-model-id').value = '';
-            document.getElementById('new-model-key').value = '';
-            document.getElementById('new-model-tokens').value = '';
+            document.getElementById('new-key-name').value = '';
+            document.getElementById('new-key-provider').value = '';
+            document.getElementById('new-key-value').value = '';
+
+            alert('API key added successfully!');
+        }
+
+        function deleteApiKey(id) {
+            if (!confirm('Delete this API key?')) return;
+            apiKeys = apiKeys.filter(k => k.id !== id);
+            saveToStorage();
+            updateApiKeysList();
+        }
+
+        function updateApiKeysList() {
+            const list = document.getElementById('api-keys-list');
+            list.innerHTML = '';
+
+            if (apiKeys.length === 0) {
+                list.innerHTML = '<p style="color: #888;">No API keys saved yet.</p>';
+                return;
+            }
+
+            apiKeys.forEach(key => {
+                const div = document.createElement('div');
+                div.className = 'prompt-item';
+                div.innerHTML = `
+                    <h4>${escapeHtml(key.name)}</h4>
+                    <div style="font-size: 13px; color: #aaa; margin-bottom: 4px;">
+                        <strong>Provider:</strong> ${escapeHtml(key.provider)}<br>
+                        <strong>Key:</strong> ${escapeHtml(key.value.substring(0, 10))}...${escapeHtml(key.value.substring(key.value.length - 4))}
+                    </div>
+                    <div class="prompt-actions">
+                        <button onclick="deleteApiKey('${key.id}')">Delete</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function addModel() {
+            const name = document.getElementById('new-model-name').value.trim();
+            const configText = document.getElementById('new-model-config').value.trim();
+
+            if (!name) {
+                alert('Please enter a model name');
+                return;
+            }
+
+            if (!configText) {
+                alert('Please select a template or enter model configuration');
+                return;
+            }
+
+            try {
+                const config = JSON.parse(configText);
+
+                // Validate required fields
+                if (!config.template || !config.endpoint || !config.model_id || !config.api_key) {
+                    alert('Configuration must include: template, endpoint, model_id, and api_key');
+                    return;
+                }
+
+                const model = {
+                    name,
+                    ...config
+                };
+
+                models.push(model);
+                saveToStorage();
+                updateModelSelect();
+                updateModelsList();
+
+                // Clear form
+                document.getElementById('new-model-name').value = '';
+                document.getElementById('new-model-template').value = '';
+                document.getElementById('new-model-config').value = '';
+
+                alert('Model added successfully!');
+            } catch (e) {
+                alert('Invalid JSON configuration: ' + e.message);
+            }
         }
 
         function deleteModel(index) {
@@ -709,40 +922,27 @@
             models.forEach((model, index) => {
                 const div = document.createElement('div');
                 div.className = 'prompt-item';
+
+                // Create config object without the name field for display
+                const { name, ...config } = model;
+                const configJson = JSON.stringify(config, null, 2);
+
                 div.innerHTML = `
                     <h4>${escapeHtml(model.name)}</h4>
-                    <div style="font-size: 13px; color: #aaa; margin-bottom: 4px;">
-                        <strong>Template:</strong> ${escapeHtml(model.template)}<br>
-                        <strong>Model ID:</strong> ${escapeHtml(model.model_id)}<br>
-                        <strong>Endpoint:</strong> ${escapeHtml(model.endpoint.substring(0, 50))}${model.endpoint.length > 50 ? '...' : ''}
+                    <div style="font-size: 13px; color: #aaa; margin-bottom: 8px;">
+                        <strong>Template:</strong> ${escapeHtml(model.template)} |
+                        <strong>Model ID:</strong> ${escapeHtml(model.model_id)}
                     </div>
+                    <details style="margin-bottom: 8px;">
+                        <summary style="cursor: pointer; color: #4a9eff; font-size: 13px;">View Configuration</summary>
+                        <pre style="background: #1a1a1a; padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 12px; margin-top: 8px;">${escapeHtml(configJson)}</pre>
+                    </details>
                     <div class="prompt-actions">
                         <button onclick="deleteModel(${index})">Delete</button>
                     </div>
                 `;
                 list.appendChild(div);
             });
-        }
-
-        function saveModelsConfig() {
-            const configText = document.getElementById('models-config').value;
-            try {
-                const parsed = JSON.parse(configText);
-
-                if (Array.isArray(parsed)) {
-                    models = parsed;
-                } else {
-                    alert('Configuration must be an array of models');
-                    return;
-                }
-
-                saveToStorage();
-                updateModelSelect();
-                updateModelsList();
-                alert('Configuration saved!');
-            } catch (e) {
-                alert('Invalid JSON: ' + e.message);
-            }
         }
 
         async function handleFileUpload(e) {
@@ -869,6 +1069,19 @@
             saveToStorage();
         }
 
+        function resolveApiKey(model) {
+            // If model has api_key_id, look up the key
+            if (model.api_key_id) {
+                const key = apiKeys.find(k => k.id === model.api_key_id);
+                if (key) {
+                    return key.value;
+                }
+                throw new Error(`API key not found for ID: ${model.api_key_id}`);
+            }
+            // Otherwise use the direct api_key
+            return model.api_key;
+        }
+
         async function streamResponse(model, assistantMessage) {
             const messages = buildMessagesForAPI(model, assistantMessage);
 
@@ -878,6 +1091,10 @@
                 await streamOpenAI(model, messages, assistantMessage);
             } else if (model.template === 'google') {
                 await streamGoogle(model, messages, assistantMessage);
+            } else if (model.template === 'xai') {
+                await streamXAI(model, messages, assistantMessage);
+            } else if (model.template === 'openrouter') {
+                await streamOpenRouter(model, messages, assistantMessage);
             } else {
                 await streamCustom(model, messages, assistantMessage);
             }
@@ -949,6 +1166,23 @@
                 stream: true
             };
 
+            // Add optional parameters if specified
+            if (model.temperature !== undefined && model.temperature !== null) {
+                body.temperature = model.temperature;
+            }
+            if (model.top_p !== undefined && model.top_p !== null) {
+                body.top_p = model.top_p;
+            }
+            if (model.top_k !== undefined && model.top_k !== null) {
+                body.top_k = model.top_k;
+            }
+            if (model.stop_sequences && model.stop_sequences.length > 0) {
+                body.stop_sequences = model.stop_sequences;
+            }
+            if (model.metadata) {
+                body.metadata = model.metadata;
+            }
+
             if (activePromptId) {
                 const prompt = systemPrompts.find(p => p.id === activePromptId);
                 if (prompt) {
@@ -958,17 +1192,31 @@
 
             console.log('Anthropic request:', { endpoint: model.endpoint, body });
 
+            const apiKey = resolveApiKey(model);
+
+            // Build headers
+            const headers = {
+                'Content-Type': 'application/json',
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true',
+                'x-api-key': apiKey
+            };
+
+            // Add custom headers
+            if (model.headers) {
+                Object.assign(headers, model.headers);
+            }
+
+            // Add beta headers (features like extended thinking, prompt caching, etc.)
+            if (model.beta_headers && model.beta_headers.length > 0) {
+                headers['anthropic-beta'] = model.beta_headers.join(',');
+            }
+
             let response;
             try {
                 response = await fetch(model.endpoint, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'anthropic-version': '2023-06-01',
-                        'anthropic-dangerous-direct-browser-access': 'true',
-                        'x-api-key': model.api_key,
-                        ...(model.headers || {})
-                    },
+                    headers: headers,
                     body: JSON.stringify(body)
                 });
             } catch (e) {
@@ -1034,6 +1282,53 @@
                 stream: true
             };
 
+            // Add optional parameters if specified
+            if (model.max_tokens !== undefined && model.max_tokens !== null) {
+                body.max_tokens = model.max_tokens;
+            }
+            if (model.temperature !== undefined && model.temperature !== null) {
+                body.temperature = model.temperature;
+            }
+            if (model.top_p !== undefined && model.top_p !== null) {
+                body.top_p = model.top_p;
+            }
+            if (model.frequency_penalty !== undefined && model.frequency_penalty !== null) {
+                body.frequency_penalty = model.frequency_penalty;
+            }
+            if (model.presence_penalty !== undefined && model.presence_penalty !== null) {
+                body.presence_penalty = model.presence_penalty;
+            }
+            if (model.stop && model.stop.length > 0) {
+                body.stop = model.stop;
+            }
+            if (model.n !== undefined && model.n !== null) {
+                body.n = model.n;
+            }
+            if (model.stream_options) {
+                body.stream_options = model.stream_options;
+            }
+            if (model.response_format) {
+                body.response_format = model.response_format;
+            }
+            if (model.seed !== undefined && model.seed !== null) {
+                body.seed = model.seed;
+            }
+            if (model.logprobs !== undefined && model.logprobs !== null) {
+                body.logprobs = model.logprobs;
+            }
+            if (model.top_logprobs !== undefined && model.top_logprobs !== null) {
+                body.top_logprobs = model.top_logprobs;
+            }
+            if (model.user) {
+                body.user = model.user;
+            }
+            if (model.tools) {
+                body.tools = model.tools;
+            }
+            if (model.tool_choice) {
+                body.tool_choice = model.tool_choice;
+            }
+
             if (activePromptId) {
                 const prompt = systemPrompts.find(p => p.id === activePromptId);
                 if (prompt) {
@@ -1043,15 +1338,24 @@
 
             console.log('OpenAI request:', { endpoint: model.endpoint, body });
 
+            const apiKey = resolveApiKey(model);
+
+            // Build headers
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            };
+
+            // Add custom headers
+            if (model.headers) {
+                Object.assign(headers, model.headers);
+            }
+
             let response;
             try {
                 response = await fetch(model.endpoint, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${model.api_key}`,
-                        ...(model.headers || {})
-                    },
+                    headers: headers,
                     body: JSON.stringify(body)
                 });
             } catch (e) {
@@ -1087,6 +1391,284 @@
                         const data = line.slice(6);
                         if (data === '[DONE]') continue;
                         
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta?.content;
+                            if (delta) {
+                                assistantMessage.content += delta;
+                                renderConversation();
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE:', e, 'Line:', line);
+                        }
+                    }
+                }
+            }
+        }
+
+        async function streamXAI(model, messages, assistantMessage) {
+            // xAI uses OpenAI-compatible API
+            const body = {
+                model: model.model_id,
+                messages: messages,
+                stream: true
+            };
+
+            // Add optional parameters if specified
+            if (model.max_tokens !== undefined && model.max_tokens !== null) {
+                body.max_tokens = model.max_tokens;
+            }
+            if (model.temperature !== undefined && model.temperature !== null) {
+                body.temperature = model.temperature;
+            }
+            if (model.top_p !== undefined && model.top_p !== null) {
+                body.top_p = model.top_p;
+            }
+            if (model.frequency_penalty !== undefined && model.frequency_penalty !== null) {
+                body.frequency_penalty = model.frequency_penalty;
+            }
+            if (model.presence_penalty !== undefined && model.presence_penalty !== null) {
+                body.presence_penalty = model.presence_penalty;
+            }
+            if (model.stop && model.stop.length > 0) {
+                body.stop = model.stop;
+            }
+            if (model.n !== undefined && model.n !== null) {
+                body.n = model.n;
+            }
+            if (model.stream_options) {
+                body.stream_options = model.stream_options;
+            }
+            if (model.response_format) {
+                body.response_format = model.response_format;
+            }
+            if (model.seed !== undefined && model.seed !== null) {
+                body.seed = model.seed;
+            }
+            if (model.logprobs !== undefined && model.logprobs !== null) {
+                body.logprobs = model.logprobs;
+            }
+            if (model.top_logprobs !== undefined && model.top_logprobs !== null) {
+                body.top_logprobs = model.top_logprobs;
+            }
+            if (model.user) {
+                body.user = model.user;
+            }
+            if (model.tools) {
+                body.tools = model.tools;
+            }
+            if (model.tool_choice) {
+                body.tool_choice = model.tool_choice;
+            }
+
+            if (activePromptId) {
+                const prompt = systemPrompts.find(p => p.id === activePromptId);
+                if (prompt) {
+                    body.messages.unshift({ role: 'system', content: prompt.content });
+                }
+            }
+
+            console.log('xAI request:', { endpoint: model.endpoint, body });
+
+            const apiKey = resolveApiKey(model);
+
+            // Build headers
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            };
+
+            // Add custom headers
+            if (model.headers) {
+                Object.assign(headers, model.headers);
+            }
+
+            let response;
+            try {
+                response = await fetch(model.endpoint, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+            } catch (e) {
+                console.error('Fetch error:', e);
+                throw new Error(`Network error: ${e.message}. Check your internet connection and API endpoint.`);
+            }
+
+            if (!response.ok) {
+                let errorText;
+                try {
+                    errorText = await response.text();
+                    console.error('API error response:', errorText);
+                } catch (e) {
+                    errorText = 'Could not read error response';
+                }
+                throw new Error(`API error ${response.status}: ${errorText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta?.content;
+                            if (delta) {
+                                assistantMessage.content += delta;
+                                renderConversation();
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE:', e, 'Line:', line);
+                        }
+                    }
+                }
+            }
+        }
+
+        async function streamOpenRouter(model, messages, assistantMessage) {
+            // OpenRouter uses OpenAI-compatible API with additional options
+            const body = {
+                model: model.model_id,
+                messages: messages,
+                stream: true
+            };
+
+            // Add optional parameters if specified
+            if (model.max_tokens !== undefined && model.max_tokens !== null) {
+                body.max_tokens = model.max_tokens;
+            }
+            if (model.temperature !== undefined && model.temperature !== null) {
+                body.temperature = model.temperature;
+            }
+            if (model.top_p !== undefined && model.top_p !== null) {
+                body.top_p = model.top_p;
+            }
+            if (model.frequency_penalty !== undefined && model.frequency_penalty !== null) {
+                body.frequency_penalty = model.frequency_penalty;
+            }
+            if (model.presence_penalty !== undefined && model.presence_penalty !== null) {
+                body.presence_penalty = model.presence_penalty;
+            }
+            if (model.stop && model.stop.length > 0) {
+                body.stop = model.stop;
+            }
+            if (model.n !== undefined && model.n !== null) {
+                body.n = model.n;
+            }
+            if (model.stream_options) {
+                body.stream_options = model.stream_options;
+            }
+            if (model.response_format) {
+                body.response_format = model.response_format;
+            }
+            if (model.seed !== undefined && model.seed !== null) {
+                body.seed = model.seed;
+            }
+            if (model.logprobs !== undefined && model.logprobs !== null) {
+                body.logprobs = model.logprobs;
+            }
+            if (model.top_logprobs !== undefined && model.top_logprobs !== null) {
+                body.top_logprobs = model.top_logprobs;
+            }
+            if (model.user) {
+                body.user = model.user;
+            }
+            if (model.tools) {
+                body.tools = model.tools;
+            }
+            if (model.tool_choice) {
+                body.tool_choice = model.tool_choice;
+            }
+
+            // OpenRouter-specific options
+            if (model.transforms) {
+                body.transforms = model.transforms;
+            }
+            if (model.models) {
+                body.models = model.models;
+            }
+            if (model.route) {
+                body.route = model.route;
+            }
+            if (model.provider) {
+                body.provider = model.provider;
+            }
+
+            if (activePromptId) {
+                const prompt = systemPrompts.find(p => p.id === activePromptId);
+                if (prompt) {
+                    body.messages.unshift({ role: 'system', content: prompt.content });
+                }
+            }
+
+            console.log('OpenRouter request:', { endpoint: model.endpoint, body });
+
+            const apiKey = resolveApiKey(model);
+
+            // Build headers
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            };
+
+            // Add custom headers (OpenRouter recommends HTTP-Referer and X-Title)
+            if (model.headers) {
+                Object.assign(headers, model.headers);
+            }
+
+            let response;
+            try {
+                response = await fetch(model.endpoint, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+            } catch (e) {
+                console.error('Fetch error:', e);
+                throw new Error(`Network error: ${e.message}. Check your internet connection and API endpoint.`);
+            }
+
+            if (!response.ok) {
+                let errorText;
+                try {
+                    errorText = await response.text();
+                    console.error('API error response:', errorText);
+                } catch (e) {
+                    errorText = 'Could not read error response';
+                }
+                throw new Error(`API error ${response.status}: ${errorText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+
                         try {
                             const parsed = JSON.parse(data);
                             const delta = parsed.choices?.[0]?.delta?.content;
@@ -1141,6 +1723,46 @@
                 contents: contents
             };
 
+            // Add generation config with optional parameters
+            const generationConfig = {};
+            if (model.temperature !== undefined && model.temperature !== null) {
+                generationConfig.temperature = model.temperature;
+            }
+            if (model.top_p !== undefined && model.top_p !== null) {
+                generationConfig.topP = model.top_p;
+            }
+            if (model.top_k !== undefined && model.top_k !== null) {
+                generationConfig.topK = model.top_k;
+            }
+            if (model.max_output_tokens !== undefined && model.max_output_tokens !== null) {
+                generationConfig.maxOutputTokens = model.max_output_tokens;
+            }
+            if (model.candidate_count !== undefined && model.candidate_count !== null) {
+                generationConfig.candidateCount = model.candidate_count;
+            }
+            if (model.stop_sequences && model.stop_sequences.length > 0) {
+                generationConfig.stopSequences = model.stop_sequences;
+            }
+
+            if (Object.keys(generationConfig).length > 0) {
+                body.generationConfig = generationConfig;
+            }
+
+            // Add safety settings
+            if (model.safety_settings) {
+                body.safetySettings = model.safety_settings;
+            }
+
+            // Add tools
+            if (model.tools) {
+                body.tools = model.tools;
+            }
+
+            // Add tool config
+            if (model.tool_config) {
+                body.toolConfig = model.tool_config;
+            }
+
             // Add system instruction if present
             if (activePromptId) {
                 const prompt = systemPrompts.find(p => p.id === activePromptId);
@@ -1152,18 +1774,26 @@
             }
 
             // Build endpoint with API key
-            const endpoint = `${model.endpoint}?alt=sse&key=${model.api_key}`;
+            const apiKey = resolveApiKey(model);
+            const endpoint = `${model.endpoint}?alt=sse&key=${apiKey}`;
 
             console.log('Google request:', { endpoint, body });
+
+            // Build headers
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+
+            // Add custom headers
+            if (model.headers) {
+                Object.assign(headers, model.headers);
+            }
 
             let response;
             try {
                 response = await fetch(endpoint, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...(model.headers || {})
-                    },
+                    headers: headers,
                     body: JSON.stringify(body)
                 });
             } catch (e) {
@@ -1358,6 +1988,7 @@
         function exportData() {
             const data = {
                 models,
+                apiKeys,
                 systemPrompts,
                 activePromptId,
                 currentConversation,
@@ -1376,6 +2007,7 @@
                     const data = JSON.parse(e.target.result);
 
                     if (data.models) models = data.models;
+                    if (data.apiKeys) apiKeys = data.apiKeys;
                     if (data.systemPrompts) systemPrompts = data.systemPrompts;
                     if (data.activePromptId) activePromptId = data.activePromptId;
                     if (data.currentConversation) currentConversation = data.currentConversation;
