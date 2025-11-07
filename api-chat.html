@@ -1013,15 +1013,36 @@
             }
 
             try {
-                // Strip inline comments (// ...) from JSON
+                // Strip inline comments (// ...) from JSON, but not inside strings
                 const cleanedConfig = configText
                     .split('\n')
                     .map(line => {
-                        // Remove inline comments after values
-                        const commentIndex = line.indexOf('//');
-                        if (commentIndex !== -1) {
-                            return line.substring(0, commentIndex).trimEnd();
+                        // Remove inline comments after values, but not inside quoted strings
+                        let inString = false;
+                        let escapeNext = false;
+
+                        for (let i = 0; i < line.length; i++) {
+                            if (escapeNext) {
+                                escapeNext = false;
+                                continue;
+                            }
+
+                            if (line[i] === '\\') {
+                                escapeNext = true;
+                                continue;
+                            }
+
+                            if (line[i] === '"') {
+                                inString = !inString;
+                                continue;
+                            }
+
+                            // Found // outside of a string - this is a comment
+                            if (!inString && line[i] === '/' && line[i + 1] === '/') {
+                                return line.substring(0, i).trimEnd();
+                            }
                         }
+
                         return line;
                     })
                     .join('\n');
