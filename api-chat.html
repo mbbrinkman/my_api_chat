@@ -338,6 +338,7 @@
         <button class="tab active" data-tab="chat">Chat</button>
         <button class="tab" data-tab="prompts">System Prompts</button>
         <button class="tab" data-tab="history">History</button>
+        <button class="tab" data-tab="api-keys">API Keys</button>
         <button class="tab" data-tab="settings">Settings</button>
     </div>
 
@@ -384,6 +385,27 @@
         </div>
     </div>
 
+    <div id="api-keys-tab" class="tab-content">
+        <div class="settings-container">
+            <div class="settings-section">
+                <h3>Add API Key</h3>
+                <input type="text" id="new-key-name" placeholder="Key name (e.g., My Anthropic Key, Work OpenAI)" style="margin-bottom: 8px;">
+                <select id="new-key-provider" style="margin-bottom: 8px;">
+                    <option value="">Select provider...</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="google">Google</option>
+                </select>
+                <input type="password" id="new-key-value" placeholder="API key" style="margin-bottom: 8px;">
+                <button class="primary" onclick="addApiKey()">Add API Key</button>
+            </div>
+            <div class="settings-section">
+                <h3>Saved API Keys</h3>
+                <div id="api-keys-list"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="settings-tab" class="tab-content">
         <div class="settings-container">
             <div class="settings-section">
@@ -414,6 +436,7 @@
     <script>
         // State
         let models = [];
+        let apiKeys = [];
         let systemPrompts = [];
         let activePromptId = null;
         let currentConversation = [];
@@ -427,6 +450,7 @@
             setupEventListeners();
             updateModelSelect();
             updateModelsList();
+            updateApiKeysList();
             updatePromptsList();
             updatePromptsSelect();
             renderConversation();
@@ -440,6 +464,15 @@
                     models = JSON.parse(storedModels);
                 } catch (e) {
                     console.error('Error loading models:', e);
+                }
+            }
+
+            const storedApiKeys = localStorage.getItem('apiKeys');
+            if (storedApiKeys) {
+                try {
+                    apiKeys = JSON.parse(storedApiKeys);
+                } catch (e) {
+                    console.error('Error loading API keys:', e);
                 }
             }
 
@@ -466,6 +499,7 @@
 
         function saveToStorage() {
             localStorage.setItem('models', JSON.stringify(models));
+            localStorage.setItem('apiKeys', JSON.stringify(apiKeys));
             localStorage.setItem('systemPrompts', JSON.stringify(systemPrompts));
             localStorage.setItem('activePromptId', activePromptId || '');
             localStorage.setItem('currentConversation', JSON.stringify(currentConversation));
@@ -491,25 +525,47 @@
                 const template = e.target.value;
                 const configTextarea = document.getElementById('new-model-config');
 
+                // Get available API keys for the selected template
+                const templateKeys = apiKeys.filter(k => k.provider === template);
+                const apiKeyRef = templateKeys.length > 0
+                    ? `"api_key_id": "${templateKeys[0].id}"  // Using: ${templateKeys[0].name}`
+                    : `"api_key": "your-api-key-here"  // Or add an API key in the API Keys tab`;
+
                 const templates = {
                     anthropic: `{
   "template": "anthropic",
   "endpoint": "https://api.anthropic.com/v1/messages",
   "model_id": "claude-3-5-sonnet-20241022",
-  "api_key": "sk-ant-your-api-key-here",
-  "max_tokens": 8096
+  ${apiKeyRef},
+  "max_tokens": 8096,
+  "temperature": 1.0,
+  "top_p": 1.0,
+  "top_k": null,
+  "stop_sequences": null
 }`,
                     openai: `{
   "template": "openai",
   "endpoint": "https://api.openai.com/v1/chat/completions",
   "model_id": "gpt-4-turbo",
-  "api_key": "sk-your-openai-key-here"
+  ${apiKeyRef},
+  "max_tokens": null,
+  "temperature": 1.0,
+  "top_p": 1.0,
+  "frequency_penalty": 0,
+  "presence_penalty": 0,
+  "stop": null
 }`,
                     google: `{
   "template": "google",
   "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:streamGenerateContent",
   "model_id": "gemini-1.5-pro",
-  "api_key": "your-google-api-key-here"
+  ${apiKeyRef},
+  "temperature": 1.0,
+  "top_p": 1.0,
+  "top_k": null,
+  "max_output_tokens": null,
+  "candidate_count": 1,
+  "stop_sequences": null
 }`
                 };
 
@@ -526,6 +582,8 @@
 
             if (tabName === 'settings') {
                 updateModelsList();
+            } else if (tabName === 'api-keys') {
+                updateApiKeysList();
             }
         }
 
@@ -625,6 +683,68 @@
             saveToStorage();
             updatePromptsList();
             updatePromptsSelect();
+        }
+
+        function addApiKey() {
+            const name = document.getElementById('new-key-name').value.trim();
+            const provider = document.getElementById('new-key-provider').value;
+            const value = document.getElementById('new-key-value').value.trim();
+
+            if (!name || !provider || !value) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            const apiKey = {
+                id: Date.now().toString(),
+                name,
+                provider,
+                value
+            };
+
+            apiKeys.push(apiKey);
+            saveToStorage();
+            updateApiKeysList();
+
+            // Clear form
+            document.getElementById('new-key-name').value = '';
+            document.getElementById('new-key-provider').value = '';
+            document.getElementById('new-key-value').value = '';
+
+            alert('API key added successfully!');
+        }
+
+        function deleteApiKey(id) {
+            if (!confirm('Delete this API key?')) return;
+            apiKeys = apiKeys.filter(k => k.id !== id);
+            saveToStorage();
+            updateApiKeysList();
+        }
+
+        function updateApiKeysList() {
+            const list = document.getElementById('api-keys-list');
+            list.innerHTML = '';
+
+            if (apiKeys.length === 0) {
+                list.innerHTML = '<p style="color: #888;">No API keys saved yet.</p>';
+                return;
+            }
+
+            apiKeys.forEach(key => {
+                const div = document.createElement('div');
+                div.className = 'prompt-item';
+                div.innerHTML = `
+                    <h4>${escapeHtml(key.name)}</h4>
+                    <div style="font-size: 13px; color: #aaa; margin-bottom: 4px;">
+                        <strong>Provider:</strong> ${escapeHtml(key.provider)}<br>
+                        <strong>Key:</strong> ${escapeHtml(key.value.substring(0, 10))}...${escapeHtml(key.value.substring(key.value.length - 4))}
+                    </div>
+                    <div class="prompt-actions">
+                        <button onclick="deleteApiKey('${key.id}')">Delete</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
         }
 
         function addModel() {
@@ -838,6 +958,19 @@
             saveToStorage();
         }
 
+        function resolveApiKey(model) {
+            // If model has api_key_id, look up the key
+            if (model.api_key_id) {
+                const key = apiKeys.find(k => k.id === model.api_key_id);
+                if (key) {
+                    return key.value;
+                }
+                throw new Error(`API key not found for ID: ${model.api_key_id}`);
+            }
+            // Otherwise use the direct api_key
+            return model.api_key;
+        }
+
         async function streamResponse(model, assistantMessage) {
             const messages = buildMessagesForAPI(model, assistantMessage);
 
@@ -918,6 +1051,20 @@
                 stream: true
             };
 
+            // Add optional parameters if specified
+            if (model.temperature !== undefined && model.temperature !== null) {
+                body.temperature = model.temperature;
+            }
+            if (model.top_p !== undefined && model.top_p !== null) {
+                body.top_p = model.top_p;
+            }
+            if (model.top_k !== undefined && model.top_k !== null) {
+                body.top_k = model.top_k;
+            }
+            if (model.stop_sequences && model.stop_sequences.length > 0) {
+                body.stop_sequences = model.stop_sequences;
+            }
+
             if (activePromptId) {
                 const prompt = systemPrompts.find(p => p.id === activePromptId);
                 if (prompt) {
@@ -927,6 +1074,8 @@
 
             console.log('Anthropic request:', { endpoint: model.endpoint, body });
 
+            const apiKey = resolveApiKey(model);
+
             let response;
             try {
                 response = await fetch(model.endpoint, {
@@ -935,7 +1084,7 @@
                         'Content-Type': 'application/json',
                         'anthropic-version': '2023-06-01',
                         'anthropic-dangerous-direct-browser-access': 'true',
-                        'x-api-key': model.api_key,
+                        'x-api-key': apiKey,
                         ...(model.headers || {})
                     },
                     body: JSON.stringify(body)
@@ -1003,6 +1152,26 @@
                 stream: true
             };
 
+            // Add optional parameters if specified
+            if (model.max_tokens !== undefined && model.max_tokens !== null) {
+                body.max_tokens = model.max_tokens;
+            }
+            if (model.temperature !== undefined && model.temperature !== null) {
+                body.temperature = model.temperature;
+            }
+            if (model.top_p !== undefined && model.top_p !== null) {
+                body.top_p = model.top_p;
+            }
+            if (model.frequency_penalty !== undefined && model.frequency_penalty !== null) {
+                body.frequency_penalty = model.frequency_penalty;
+            }
+            if (model.presence_penalty !== undefined && model.presence_penalty !== null) {
+                body.presence_penalty = model.presence_penalty;
+            }
+            if (model.stop && model.stop.length > 0) {
+                body.stop = model.stop;
+            }
+
             if (activePromptId) {
                 const prompt = systemPrompts.find(p => p.id === activePromptId);
                 if (prompt) {
@@ -1012,13 +1181,15 @@
 
             console.log('OpenAI request:', { endpoint: model.endpoint, body });
 
+            const apiKey = resolveApiKey(model);
+
             let response;
             try {
                 response = await fetch(model.endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${model.api_key}`,
+                        'Authorization': `Bearer ${apiKey}`,
                         ...(model.headers || {})
                     },
                     body: JSON.stringify(body)
@@ -1110,6 +1281,31 @@
                 contents: contents
             };
 
+            // Add generation config with optional parameters
+            const generationConfig = {};
+            if (model.temperature !== undefined && model.temperature !== null) {
+                generationConfig.temperature = model.temperature;
+            }
+            if (model.top_p !== undefined && model.top_p !== null) {
+                generationConfig.topP = model.top_p;
+            }
+            if (model.top_k !== undefined && model.top_k !== null) {
+                generationConfig.topK = model.top_k;
+            }
+            if (model.max_output_tokens !== undefined && model.max_output_tokens !== null) {
+                generationConfig.maxOutputTokens = model.max_output_tokens;
+            }
+            if (model.candidate_count !== undefined && model.candidate_count !== null) {
+                generationConfig.candidateCount = model.candidate_count;
+            }
+            if (model.stop_sequences && model.stop_sequences.length > 0) {
+                generationConfig.stopSequences = model.stop_sequences;
+            }
+
+            if (Object.keys(generationConfig).length > 0) {
+                body.generationConfig = generationConfig;
+            }
+
             // Add system instruction if present
             if (activePromptId) {
                 const prompt = systemPrompts.find(p => p.id === activePromptId);
@@ -1121,7 +1317,8 @@
             }
 
             // Build endpoint with API key
-            const endpoint = `${model.endpoint}?alt=sse&key=${model.api_key}`;
+            const apiKey = resolveApiKey(model);
+            const endpoint = `${model.endpoint}?alt=sse&key=${apiKey}`;
 
             console.log('Google request:', { endpoint, body });
 
@@ -1327,6 +1524,7 @@
         function exportData() {
             const data = {
                 models,
+                apiKeys,
                 systemPrompts,
                 activePromptId,
                 currentConversation,
@@ -1345,6 +1543,7 @@
                     const data = JSON.parse(e.target.result);
 
                     if (data.models) models = data.models;
+                    if (data.apiKeys) apiKeys = data.apiKeys;
                     if (data.systemPrompts) systemPrompts = data.systemPrompts;
                     if (data.activePromptId) activePromptId = data.activePromptId;
                     if (data.currentConversation) currentConversation = data.currentConversation;
