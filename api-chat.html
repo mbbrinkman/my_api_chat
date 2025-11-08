@@ -1543,13 +1543,17 @@
                 if (msg === excludeMessage) continue; // Skip the message we're currently generating
 
                 if (msg.role === 'user') {
-                    const content = [];
+                    let content;
 
-                    if (msg.content) {
-                        content.push({ type: 'text', text: msg.content });
-                    }
+                    // Build content based on whether we have files
+                    if (msg.files && msg.files.length > 0) {
+                        // Has files - use array format
+                        content = [];
 
-                    if (msg.files) {
+                        if (msg.content) {
+                            content.push({ type: 'text', text: msg.content });
+                        }
+
                         for (const file of msg.files) {
                             if (file.type.startsWith('image/')) {
                                 if (model.template === 'anthropic') {
@@ -1594,18 +1598,21 @@
                                     }
                                 });
                             } else {
-                                // For OpenAI or other unsupported file types, just mention it
+                                // For other unsupported file types, just mention it
                                 content.push({
                                     type: 'text',
                                     text: `[Attached file: ${file.name}]`
                                 });
                             }
                         }
+                    } else {
+                        // No files - use simple string format
+                        content = msg.content || '';
                     }
 
                     messages.push({
                         role: 'user',
-                        content: content.length === 1 && content[0].type === 'text' ? content[0].text : content
+                        content: content
                     });
                     lastRole = 'user';
                 } else if (msg.role === 'assistant') {
