@@ -685,17 +685,10 @@
                 <div id="prompts-list"></div>
             </div>
             <div class="settings-section">
-                <h3>Add API Key</h3>
-                <input type="text" id="new-key-name" placeholder="Key name (e.g., My Anthropic Key, Work OpenAI)" style="margin-bottom: 8px;">
-                <select id="new-key-provider" style="margin-bottom: 8px;">
-                    <option value="">Select provider...</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="google">Google</option>
-                    <option value="xai">xAI</option>
-                    <option value="openrouter">OpenRouter</option>
-                </select>
-                <input type="password" id="new-key-value" placeholder="API key" style="margin-bottom: 8px;">
+                <h3>Add OpenRouter API Key</h3>
+                <p style="font-size: 13px; color: #888; margin-bottom: 12px;">Get your API key from <a href="https://openrouter.ai/keys" target="_blank" style="color: #4a9eff;">openrouter.ai/keys</a></p>
+                <input type="text" id="new-key-name" placeholder="Key name (e.g., Personal, Work)" style="margin-bottom: 8px;">
+                <input type="password" id="new-key-value" placeholder="Paste your OpenRouter API key here" style="margin-bottom: 8px;">
                 <button class="primary" onclick="addApiKey()">Add API Key</button>
             </div>
             <div class="settings-section">
@@ -1137,10 +1130,9 @@
 
         function addApiKey() {
             const name = document.getElementById('new-key-name').value.trim();
-            const provider = document.getElementById('new-key-provider').value;
             const value = document.getElementById('new-key-value').value.trim();
 
-            if (!name || !provider || !value) {
+            if (!name || !value) {
                 alert('Please fill in all fields');
                 return;
             }
@@ -1148,7 +1140,7 @@
             const apiKey = {
                 id: Date.now().toString(),
                 name,
-                provider,
+                provider: 'openrouter',  // Always OpenRouter
                 value
             };
 
@@ -1158,7 +1150,6 @@
 
             // Clear form
             document.getElementById('new-key-name').value = '';
-            document.getElementById('new-key-provider').value = '';
             document.getElementById('new-key-value').value = '';
 
             alert('API key added successfully!');
