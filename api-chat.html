@@ -283,8 +283,10 @@
         }
 
         #model-checkboxes label {
-            display: flex;
-            align-items: flex-start;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            align-items: start;
             padding: 8px;
             margin-bottom: 5px;
             background: #3a3a3a;
@@ -297,13 +299,10 @@
         }
 
         #model-checkboxes input[type="checkbox"] {
-            margin-right: 10px;
-            margin-top: 3px;
-            flex-shrink: 0;
+            margin: 3px 0 0 0;
         }
 
         .model-info {
-            flex: 1;
             min-width: 0;
         }
 
@@ -468,6 +467,12 @@
             <div id="model-picker-popup" style="display: none;">
                 <div class="popup-content">
                     <h3>Select Models</h3>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; color: #e0e0e0;">Active System Prompt:</label>
+                        <select id="picker-prompt-select" style="width: 100%; padding: 8px; background: #3a3a3a; border: 1px solid #4a4a4a; color: #e0e0e0; border-radius: 4px;">
+                            <option value="">None (no system prompt)</option>
+                        </select>
+                    </div>
                     <div id="model-checkboxes"></div>
                     <div class="mode-selector">
                         <label>Mode:</label>
@@ -828,6 +833,23 @@
             const popup = document.getElementById('model-picker-popup');
             const checkboxesContainer = document.getElementById('model-checkboxes');
 
+            // Populate system prompt selector
+            const promptSelect = document.getElementById('picker-prompt-select');
+            promptSelect.innerHTML = '<option value="">None (no system prompt)</option>';
+            systemPrompts.forEach(prompt => {
+                const option = document.createElement('option');
+                option.value = prompt.id;
+                option.textContent = prompt.name;
+                if (prompt.id === activePromptId) {
+                    option.selected = true;
+                }
+                promptSelect.appendChild(option);
+            });
+            promptSelect.onchange = (e) => {
+                activePromptId = e.target.value || null;
+                saveToStorage();
+            };
+
             checkboxesContainer.innerHTML = '';
 
             if (models.length === 0) {
@@ -862,13 +884,23 @@
                     modelName.textContent = model.name;
                     modelInfo.appendChild(modelName);
 
-                    // Show system prompt if it exists
-                    if (model.system_prompt && model.system_prompt.trim()) {
+                    // Show active system prompt (global overrides per-model)
+                    let promptText = null;
+                    if (activePromptId) {
+                        const prompt = systemPrompts.find(p => p.id === activePromptId);
+                        if (prompt) {
+                            promptText = prompt.content;
+                        }
+                    } else if (model.system_prompt && model.system_prompt.trim()) {
+                        promptText = model.system_prompt;
+                    }
+
+                    if (promptText) {
                         const promptPreview = document.createElement('div');
                         promptPreview.className = 'system-prompt-preview';
-                        const previewText = model.system_prompt.length > 60
-                            ? model.system_prompt.substring(0, 60) + '...'
-                            : model.system_prompt;
+                        const previewText = promptText.length > 60
+                            ? promptText.substring(0, 60) + '...'
+                            : promptText;
                         promptPreview.textContent = `System: ${previewText}`;
                         modelInfo.appendChild(promptPreview);
                     }
@@ -1549,7 +1581,13 @@
                 body.metadata = model.metadata;
             }
 
-            if (model.system_prompt && model.system_prompt.trim()) {
+            // Use activePromptId if set, otherwise fall back to model's system_prompt
+            if (activePromptId) {
+                const prompt = systemPrompts.find(p => p.id === activePromptId);
+                if (prompt) {
+                    body.system = prompt.content;
+                }
+            } else if (model.system_prompt && model.system_prompt.trim()) {
                 body.system = model.system_prompt;
             }
 
@@ -1692,7 +1730,13 @@
                 body.tool_choice = model.tool_choice;
             }
 
-            if (model.system_prompt && model.system_prompt.trim()) {
+            // Use activePromptId if set, otherwise fall back to model's system_prompt
+            if (activePromptId) {
+                const prompt = systemPrompts.find(p => p.id === activePromptId);
+                if (prompt) {
+                    body.messages.unshift({ role: 'system', content: prompt.content });
+                }
+            } else if (model.system_prompt && model.system_prompt.trim()) {
                 body.messages.unshift({ role: 'system', content: model.system_prompt });
             }
 
@@ -1821,7 +1865,13 @@
                 body.tool_choice = model.tool_choice;
             }
 
-            if (model.system_prompt && model.system_prompt.trim()) {
+            // Use activePromptId if set, otherwise fall back to model's system_prompt
+            if (activePromptId) {
+                const prompt = systemPrompts.find(p => p.id === activePromptId);
+                if (prompt) {
+                    body.messages.unshift({ role: 'system', content: prompt.content });
+                }
+            } else if (model.system_prompt && model.system_prompt.trim()) {
                 body.messages.unshift({ role: 'system', content: model.system_prompt });
             }
 
@@ -2121,7 +2171,15 @@
             }
 
             // Add system instruction if present
-            if (model.system_prompt && model.system_prompt.trim()) {
+            // Use activePromptId if set, otherwise fall back to model's system_prompt
+            if (activePromptId) {
+                const prompt = systemPrompts.find(p => p.id === activePromptId);
+                if (prompt) {
+                    body.system_instruction = {
+                        parts: [{ text: prompt.content }]
+                    };
+                }
+            } else if (model.system_prompt && model.system_prompt.trim()) {
                 body.system_instruction = {
                     parts: [{ text: model.system_prompt }]
                 };
