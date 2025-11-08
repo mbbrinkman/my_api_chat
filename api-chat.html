@@ -557,12 +557,11 @@
 
                 <h3>Model Configuration</h3>
                 <p>Each model is defined by a JSON configuration with NO outer braces. Example:</p>
-                <pre style="background: #1a1a1a; padding: 12px; border-radius: 6px; overflow-x: auto;">"template": "openrouter",
-"endpoint": "https://openrouter.ai/api/v1/chat/completions",
+                <pre style="background: #1a1a1a; padding: 12px; border-radius: 6px; overflow-x: auto;">"endpoint": "https://openrouter.ai/api/v1/chat/completions",
 "model_id": "anthropic/claude-3.5-sonnet",
 "api_key_id": "123456",
-"system_prompt": "You are a helpful assistant",
-"max_tokens": 4096,
+"system_prompt": "",
+"max_tokens": null,
 "temperature": 1.0</pre>
 
                 <h4>Available OpenRouter Models</h4>
@@ -621,17 +620,28 @@
                 <h4>File Attachments</h4>
                 <p>Click 📎 to attach images. Support varies by model - most vision-capable models on OpenRouter support image attachments.</p>
 
-                <h4>OpenRouter Parameters</h4>
-                <p>Customize your model behavior with these parameters:</p>
+                <h4>OpenRouter Parameters (All Optional)</h4>
+                <p>Customize your model behavior with these parameters (set to null to use defaults):</p>
                 <ul>
-                    <li><code>temperature</code>: Randomness (0.0-2.0)</li>
+                    <li><code>temperature</code> (0.0-2.0): Randomness/creativity level</li>
                     <li><code>max_tokens</code>: Maximum response length</li>
-                    <li><code>top_p</code>: Nucleus sampling</li>
-                    <li><code>frequency_penalty</code>: Reduce repetition</li>
-                    <li><code>presence_penalty</code>: Encourage topic diversity</li>
-                    <li><code>tools</code>: Function calling config</li>
-                    <li><code>provider</code>: Force specific provider</li>
-                    <li><code>transforms</code>: Content filtering options</li>
+                    <li><code>top_p</code> (0.0-1.0): Nucleus sampling threshold</li>
+                    <li><code>top_k</code>: Limit sampling to top K tokens</li>
+                    <li><code>frequency_penalty</code> (-2.0 to 2.0): Reduce word repetition</li>
+                    <li><code>presence_penalty</code> (-2.0 to 2.0): Encourage topic diversity</li>
+                    <li><code>repetition_penalty</code> (≥0): Alternative repetition control</li>
+                    <li><code>min_p</code> (0.0-1.0): Minimum probability threshold</li>
+                    <li><code>top_a</code> (0.0-1.0): Adaptive sampling threshold</li>
+                    <li><code>seed</code>: For deterministic outputs</li>
+                    <li><code>logit_bias</code>: Adjust token probabilities</li>
+                    <li><code>response_format</code>: e.g., {"type": "json_object"}</li>
+                    <li><code>stop</code>: Array of stop sequences</li>
+                    <li><code>tools</code>: Function calling definitions</li>
+                    <li><code>tool_choice</code>: Force or disable tool use</li>
+                    <li><code>provider</code>: Force specific provider (e.g., "Anthropic")</li>
+                    <li><code>models</code>: Fallback model array</li>
+                    <li><code>route</code>: "fallback" to use model list</li>
+                    <li><code>transforms</code>: ["middle-out"] for content filtering</li>
                 </ul>
 
                 <h3>Data Management</h3>
@@ -840,38 +850,38 @@
             // Autonomous button
             document.getElementById('auto-btn').addEventListener('click', toggleAutonomous);
 
-            // Pre-populate OpenRouter template on page load
+            // Pre-populate OpenRouter config on page load
             const configTextarea = document.getElementById('new-model-config');
             const openrouterKeys = apiKeys.filter(k => k.provider === 'openrouter');
             const apiKeyRef = openrouterKeys.length > 0
                 ? `"api_key_id": "${openrouterKeys[0].id}"`
                 : `"api_key": "your-openrouter-api-key-here"`;
 
-            configTextarea.value = `"template": "openrouter",
-  "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+            configTextarea.value = `"endpoint": "https://openrouter.ai/api/v1/chat/completions",
   "model_id": "anthropic/claude-3.5-sonnet",
   ${apiKeyRef},
   "system_prompt": "",
   "max_tokens": null,
   "temperature": 1.0,
   "top_p": 1.0,
+  "top_k": 0,
   "frequency_penalty": 0,
   "presence_penalty": 0,
-  "stop": null,
-  "n": 1,
-  "stream_options": null,
-  "response_format": null,
+  "repetition_penalty": 1,
+  "min_p": 0,
+  "top_a": 0,
   "seed": null,
+  "logit_bias": null,
   "logprobs": null,
   "top_logprobs": null,
-  "user": null,
+  "response_format": null,
+  "stop": null,
   "tools": null,
   "tool_choice": null,
-  "transforms": null,
+  "provider": null,
   "models": null,
   "route": null,
-  "provider": null,
-  "headers": {}
+  "transforms": null
 `;
         }
 
@@ -1210,8 +1220,8 @@
                 const config = JSON.parse(jsonText);
 
                 // Validate required fields
-                if (!config.template || !config.endpoint || !config.model_id || (!config.api_key && !config.api_key_id)) {
-                    alert('Configuration must include: template, endpoint, model_id, and api_key (or api_key_id)');
+                if (!config.endpoint || !config.model_id || (!config.api_key && !config.api_key_id)) {
+                    alert('Configuration must include: endpoint, model_id, and api_key (or api_key_id)');
                     return;
                 }
 
@@ -1681,26 +1691,29 @@
             if (model.top_p !== undefined && model.top_p !== null) {
                 body.top_p = model.top_p;
             }
+            if (model.top_k !== undefined && model.top_k !== null && model.top_k !== 0) {
+                body.top_k = model.top_k;
+            }
             if (model.frequency_penalty !== undefined && model.frequency_penalty !== null) {
                 body.frequency_penalty = model.frequency_penalty;
             }
             if (model.presence_penalty !== undefined && model.presence_penalty !== null) {
                 body.presence_penalty = model.presence_penalty;
             }
-            if (model.stop && model.stop.length > 0) {
-                body.stop = model.stop;
+            if (model.repetition_penalty !== undefined && model.repetition_penalty !== null && model.repetition_penalty !== 1) {
+                body.repetition_penalty = model.repetition_penalty;
             }
-            if (model.n !== undefined && model.n !== null) {
-                body.n = model.n;
+            if (model.min_p !== undefined && model.min_p !== null && model.min_p !== 0) {
+                body.min_p = model.min_p;
             }
-            if (model.stream_options) {
-                body.stream_options = model.stream_options;
-            }
-            if (model.response_format) {
-                body.response_format = model.response_format;
+            if (model.top_a !== undefined && model.top_a !== null && model.top_a !== 0) {
+                body.top_a = model.top_a;
             }
             if (model.seed !== undefined && model.seed !== null) {
                 body.seed = model.seed;
+            }
+            if (model.logit_bias) {
+                body.logit_bias = model.logit_bias;
             }
             if (model.logprobs !== undefined && model.logprobs !== null) {
                 body.logprobs = model.logprobs;
@@ -1708,8 +1721,11 @@
             if (model.top_logprobs !== undefined && model.top_logprobs !== null) {
                 body.top_logprobs = model.top_logprobs;
             }
-            if (model.user) {
-                body.user = model.user;
+            if (model.response_format) {
+                body.response_format = model.response_format;
+            }
+            if (model.stop && model.stop.length > 0) {
+                body.stop = model.stop;
             }
             if (model.tools) {
                 body.tools = model.tools;
