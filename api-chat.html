@@ -478,10 +478,6 @@
     <div id="settings-tab" class="tab-content">
         <div class="settings-container">
             <div class="settings-section">
-                <h3>Current System Prompt</h3>
-                <select id="active-prompt-select" style="margin-bottom: 12px;"></select>
-            </div>
-            <div class="settings-section">
                 <h3>Add New Prompt</h3>
                 <input type="text" id="new-prompt-name" placeholder="Prompt name" style="margin-bottom: 8px;">
                 <textarea id="new-prompt-content" placeholder="System prompt content..."></textarea>
@@ -560,7 +556,6 @@
             updateModelsList();
             updateApiKeysList();
             updatePromptsList();
-            updatePromptsSelect();
             renderConversation();
             renderHistory();
         }
@@ -843,8 +838,7 @@
 
                     // Create a div for model info
                     const modelInfo = document.createElement('div');
-                    modelInfo.style.display = 'inline-block';
-                    modelInfo.style.marginLeft = '5px';
+                    modelInfo.style.flex = '1';
 
                     const modelName = document.createElement('div');
                     modelName.textContent = model.name;
@@ -938,26 +932,6 @@
             }
         }
 
-        function updatePromptsSelect() {
-            const select = document.getElementById('active-prompt-select');
-            select.innerHTML = '<option value="">None (no system prompt)</option>';
-            
-            systemPrompts.forEach(prompt => {
-                const option = document.createElement('option');
-                option.value = prompt.id;
-                option.textContent = prompt.name;
-                if (prompt.id === activePromptId) {
-                    option.selected = true;
-                }
-                select.appendChild(option);
-            });
-
-            select.onchange = (e) => {
-                activePromptId = e.target.value || null;
-                saveToStorage();
-            };
-        }
-
         function updatePromptsList() {
             const list = document.getElementById('prompts-list');
             list.innerHTML = '';
@@ -1000,7 +974,6 @@
             systemPrompts.push(prompt);
             saveToStorage();
             updatePromptsList();
-            updatePromptsSelect();
 
             document.getElementById('new-prompt-name').value = '';
             document.getElementById('new-prompt-content').value = '';
@@ -1028,7 +1001,6 @@
             }
             saveToStorage();
             updatePromptsList();
-            updatePromptsSelect();
         }
 
         function addApiKey() {
@@ -1469,13 +1441,14 @@
 
         function buildMessagesForAPI(model, excludeMessage = null) {
             const messages = [];
-            
+            let lastRole = null;
+
             for (const msg of currentConversation) {
                 if (msg === excludeMessage) continue; // Skip the message we're currently generating
-                
+
                 if (msg.role === 'user') {
                     const content = [];
-                    
+
                     if (msg.content) {
                         content.push({ type: 'text', text: msg.content });
                     }
@@ -1514,11 +1487,22 @@
                         role: 'user',
                         content: content.length === 1 && content[0].type === 'text' ? content[0].text : content
                     });
+                    lastRole = 'user';
                 } else if (msg.role === 'assistant') {
+                    // If last message was also assistant, convert it to user to avoid consecutive assistant messages
+                    const role = lastRole === 'assistant' ? 'user' : 'assistant';
+
+                    // Add model name prefix if converting to user and model has a name
+                    let content = msg.content;
+                    if (role === 'user' && msg.modelName) {
+                        content = `[${msg.modelName}]: ${msg.content}`;
+                    }
+
                     messages.push({
-                        role: 'assistant',
-                        content: msg.content
+                        role: role,
+                        content: content
                     });
+                    lastRole = 'assistant';
                 }
             }
 
