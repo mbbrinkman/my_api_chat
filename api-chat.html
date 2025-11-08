@@ -283,7 +283,8 @@
         }
 
         #model-checkboxes label {
-            display: block;
+            display: flex;
+            align-items: flex-start;
             padding: 8px;
             margin-bottom: 5px;
             background: #3a3a3a;
@@ -297,6 +298,8 @@
 
         #model-checkboxes input[type="checkbox"] {
             margin-right: 10px;
+            margin-top: 3px;
+            flex-shrink: 0;
         }
 
         .mode-selector {
@@ -837,7 +840,31 @@
                     });
 
                     label.appendChild(checkbox);
-                    label.appendChild(document.createTextNode(model.name));
+
+                    // Create a div for model info
+                    const modelInfo = document.createElement('div');
+                    modelInfo.style.display = 'inline-block';
+                    modelInfo.style.marginLeft = '5px';
+
+                    const modelName = document.createElement('div');
+                    modelName.textContent = model.name;
+                    modelName.style.fontWeight = '600';
+                    modelInfo.appendChild(modelName);
+
+                    // Show system prompt if it exists
+                    if (model.system_prompt && model.system_prompt.trim()) {
+                        const promptPreview = document.createElement('div');
+                        promptPreview.style.fontSize = '11px';
+                        promptPreview.style.color = '#888';
+                        promptPreview.style.marginTop = '2px';
+                        const previewText = model.system_prompt.length > 60
+                            ? model.system_prompt.substring(0, 60) + '...'
+                            : model.system_prompt;
+                        promptPreview.textContent = `System: ${previewText}`;
+                        modelInfo.appendChild(promptPreview);
+                    }
+
+                    label.appendChild(modelInfo);
                     checkboxesContainer.appendChild(label);
                 });
             }
@@ -1337,6 +1364,10 @@
                 currentConversation.push(assistantMessage);
                 renderConversation();
                 await streamResponse(model, assistantMessage);
+
+                // Save and render after each model completes so next model sees the response
+                saveToStorage();
+                renderConversation();
             }
         }
 
@@ -1363,6 +1394,10 @@
                 currentConversation.push(assistantMessage);
                 renderConversation();
                 await streamResponse(model, assistantMessage);
+
+                // Save and render after each model completes so next model sees the response
+                saveToStorage();
+                renderConversation();
             }
 
             // Increment rotation for next time
