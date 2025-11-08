@@ -2333,6 +2333,15 @@
                     }
 
                     contentHtml += `<div class="message-content">${rendered}</div>`;
+
+                    // Add edit and regenerate buttons
+                    contentHtml += `
+                        <div style="margin-top: 8px; display: flex; gap: 8px;">
+                            <button onclick="editAssistantMessage(${i})" style="font-size: 11px; padding: 4px 8px; background: #4a4a4a; border: none; color: #e0e0e0; border-radius: 4px; cursor: pointer;">Edit</button>
+                            <button onclick="regenerateResponse(${i})" style="font-size: 11px; padding: 4px 8px; background: #4a4a4a; border: none; color: #e0e0e0; border-radius: 4px; cursor: pointer;">Regenerate</button>
+                        </div>
+                    `;
+
                     div.innerHTML = contentHtml;
                     container.appendChild(div);
                 }
@@ -2345,12 +2354,89 @@
             const msg = currentConversation[index];
             document.getElementById('message-input').value = msg.content;
             editingMessageIndex = index;
-            
+
             // Load files if any
             if (msg.files) {
                 attachedFiles = [...msg.files];
                 renderAttachedFiles();
             }
+        }
+
+        function editAssistantMessage(index) {
+            const msg = currentConversation[index];
+            if (msg.role !== 'assistant') return;
+
+            const newContent = prompt('Edit AI response:', msg.content);
+            if (newContent === null) return; // User cancelled
+
+            // Update the message content
+            msg.content = newContent;
+
+            // Truncate conversation after this message
+            currentConversation = currentConversation.slice(0, index + 1);
+
+            saveToStorage();
+            renderConversation();
+        }
+
+        async function regenerateResponse(index) {
+            const msg = currentConversation[index];
+            if (msg.role !== 'assistant') return;
+            if (isStreaming) return;
+
+            // Find which model generated this response
+            let model = null;
+
+            if (msg.modelName) {
+                // Find the model by name
+                model = models.find(m => m.name === msg.modelName);
+                if (!model) {
+                    alert(`Cannot regenerate: model "${msg.modelName}" not found in your saved models`);
+                    return;
+                }
+            } else if (selectedModelIndices.length === 1) {
+                // If only one model selected, use that
+                model = models[selectedModelIndices[0]];
+            } else if (selectedModelIndices.length > 1) {
+                // Multiple models but no modelName - ask user to select
+                alert('Cannot regenerate: Multiple models selected but original model not identified. This may be an old message.');
+                return;
+            } else {
+                alert('Cannot regenerate: No models selected');
+                return;
+            }
+
+            // Truncate conversation to just before this message
+            currentConversation = currentConversation.slice(0, index);
+
+            // Create new assistant message for regeneration
+            const assistantMessage = {
+                role: 'assistant',
+                content: '',
+                thinking: '',
+                modelName: model.name,
+                timestamp: Date.now()
+            };
+
+            currentConversation.push(assistantMessage);
+            renderConversation();
+            saveToStorage();
+
+            // Regenerate the response
+            isStreaming = true;
+            document.getElementById('send-btn').disabled = true;
+
+            try {
+                await streamResponse(model, assistantMessage);
+            } catch (error) {
+                console.error('Regeneration error:', error);
+                assistantMessage.content = 'Error: ' + error.message;
+                renderConversation();
+            }
+
+            isStreaming = false;
+            document.getElementById('send-btn').disabled = false;
+            saveToStorage();
         }
 
         function renderMarkdownWithLatex(text) {
