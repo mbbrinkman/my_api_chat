@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenRouter Multi-Model Chat</title>
+    <title>Multi-Model Chat</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
@@ -265,17 +265,6 @@
             cursor: not-allowed;
         }
 
-        #stop-btn {
-            background: #ff6b6b;
-            border-color: #ff6b6b;
-            font-weight: 600;
-            display: none;
-        }
-
-        #stop-btn:hover {
-            background: #ff5252;
-        }
-
         .attached-files {
             display: flex;
             gap: 8px;
@@ -517,7 +506,6 @@
                 <textarea id="message-input" placeholder="Type a message... (Click Send button to send)"></textarea>
                 <div class="send-controls">
                     <button id="send-btn">Send</button>
-                    <button id="stop-btn">Stop</button>
                     <button id="auto-btn" style="display: none;">Start Auto</button>
                 </div>
             </div>
@@ -537,6 +525,11 @@
                         <label><input type="radio" name="model-mode" value="serial"> Serial</label>
                         <label><input type="radio" name="model-mode" value="rotating"> Rotating</label>
                         <label><input type="radio" name="model-mode" value="autonomous"> Autonomous</label>
+                    </div>
+                    <div style="margin-top: 15px; padding: 10px; background: #3a3a3a; border-radius: 4px;">
+                        <label style="display: block; margin-bottom: 5px; color: #e0e0e0;">Iterations:</label>
+                        <input type="number" id="iterations-input" min="1" max="100" value="1" style="width: 100px; padding: 8px; background: #2a2a2a; border: 1px solid #4a4a4a; color: #e0e0e0; border-radius: 4px;">
+                        <span style="font-size: 12px; color: #888; margin-left: 8px;">Number of times to iterate</span>
                     </div>
                     <button onclick="closeModelPicker()">Done</button>
                 </div>
@@ -562,46 +555,26 @@
     <div id="help-tab" class="tab-content">
         <div class="settings-container">
             <div class="settings-section">
-                <h2>OpenRouter Multi-Model Chat - Help & Guide</h2>
+                <h2>Multi-Model API Chat - Help & Customization Guide</h2>
 
                 <h3>Quick Start</h3>
                 <ol>
-                    <li><strong>Add OpenRouter API Key:</strong> Go to Settings → Add API Key section (get your key from openrouter.ai)</li>
-                    <li><strong>Browse Models:</strong> Go to Settings → Browse OpenRouter Models → Click "Load Models" to see all available models</li>
-                    <li><strong>Add Models:</strong> Click any model from the browser to auto-populate the Add New Model form, or manually add model configuration</li>
+                    <li><strong>Add API Keys:</strong> Go to Settings → Add API Key section</li>
+                    <li><strong>Add Models:</strong> Go to Settings → Add New Model, select a template, customize the config</li>
                     <li><strong>Select Models:</strong> Click "Select Models" button, check the models you want to use</li>
                     <li><strong>Choose Mode:</strong> In model picker, select Parallel/Serial/Rotating/Autonomous</li>
                     <li><strong>Chat:</strong> Type your message and click Send!</li>
                 </ol>
 
-                <h3>Model Browser</h3>
-                <p>The Browse OpenRouter Models section fetches the live model catalog from OpenRouter:</p>
-                <ul>
-                    <li><strong>Load Models:</strong> Click to fetch all available models</li>
-                    <li><strong>Search:</strong> Filter models by name, ID, or description</li>
-                    <li><strong>Sort:</strong> Sort by date (newest first), name, or context length</li>
-                    <li><strong>Select:</strong> Click any model to auto-fill the Add New Model form</li>
-                </ul>
-                <p>Each model shows context length, pricing, and release date to help you choose.</p>
-
                 <h3>Model Configuration</h3>
-                <p>Each model is defined by a JSON configuration with NO outer braces. Example:</p>
-                <pre style="background: #1a1a1a; padding: 12px; border-radius: 6px; overflow-x: auto;">"endpoint": "https://openrouter.ai/api/v1/chat/completions",
-"model_id": "anthropic/claude-3.5-sonnet",
+                <p>Each model is defined by a JSON configuration with NO outer braces:</p>
+                <pre style="background: #1a1a1a; padding: 12px; border-radius: 6px; overflow-x: auto;">"template": "anthropic",
+"endpoint": "https://api.anthropic.com/v1/messages",
+"model_id": "claude-3-5-sonnet-20241022",
 "api_key_id": "123456",
-"system_prompt": "",
-"max_tokens": null,
+"system_prompt": "You are a helpful assistant",
+"max_tokens": 8096,
 "temperature": 1.0</pre>
-
-                <h4>Available OpenRouter Models</h4>
-                <p>You can use any model from OpenRouter. Popular options include:</p>
-                <ul>
-                    <li><code>anthropic/claude-3.5-sonnet</code> - Claude 3.5 Sonnet</li>
-                    <li><code>openai/gpt-4-turbo</code> - GPT-4 Turbo</li>
-                    <li><code>google/gemini-pro</code> - Google Gemini Pro</li>
-                    <li><code>meta-llama/llama-3-70b-instruct</code> - Llama 3 70B</li>
-                    <li>...and many more at <a href="https://openrouter.ai/models" target="_blank" style="color: #4a9eff;">openrouter.ai/models</a></li>
-                </ul>
 
                 <h4>Per-Model System Prompts</h4>
                 <p>Set <code>"system_prompt": "Your prompt here"</code> in each model's config to give it a unique personality.</p>
@@ -625,16 +598,14 @@
                     <li><strong>Autonomous:</strong> "You are [Model Name]. You are conversing with: [Other Models]." (no Human)</li>
                 </ul>
 
-                <h3>About OpenRouter</h3>
-                <p>OpenRouter provides unified access to 100+ AI models from multiple providers through a single API:</p>
+                <h3>Supported Providers</h3>
                 <ul>
                     <li><strong>Anthropic:</strong> Claude models (Sonnet, Opus, Haiku)</li>
-                    <li><strong>OpenAI:</strong> GPT-4, GPT-3.5, and more</li>
+                    <li><strong>OpenAI:</strong> GPT-4, GPT-3.5, etc.</li>
                     <li><strong>Google:</strong> Gemini models</li>
-                    <li><strong>Meta:</strong> Llama models</li>
-                    <li><strong>Mistral, Cohere, and many others</strong></li>
+                    <li><strong>xAI:</strong> Grok models</li>
+                    <li><strong>OpenRouter:</strong> Access to multiple providers through one API</li>
                 </ul>
-                <p>Visit <a href="https://openrouter.ai" target="_blank" style="color: #4a9eff;">openrouter.ai</a> to get your API key and browse available models.</p>
 
                 <h3>Advanced Features</h3>
                 <h4>Edit AI Responses</h4>
@@ -647,41 +618,17 @@
                 <p>Click "Edit" button on your own messages to revise and branch the conversation from that point.</p>
 
                 <h4>File Attachments</h4>
-                <p>Click 📎 to attach images. Support varies by model - most vision-capable models on OpenRouter support image attachments.</p>
+                <p>Click 📎 to attach images. Supported by Anthropic, OpenAI, and Google models.</p>
 
-                <h4>Image Generation</h4>
-                <p>The application supports receiving images from image generation models:</p>
+                <h4>Model-Specific Parameters</h4>
+                <p>Each template includes all available parameters for that provider:</p>
                 <ul>
-                    <li>Use models with "image" in their output modalities (check model browser or openrouter.ai/models)</li>
-                    <li>Request image generation in your message (e.g., "draw a sunset")</li>
-                    <li>Generated images appear automatically in the response</li>
-                    <li>Multiple images per response are supported</li>
-                    <li>Images are displayed inline below the text content</li>
-                </ul>
-
-                <h4>OpenRouter Parameters (All Optional)</h4>
-                <p>Customize your model behavior with these parameters (set to null to use defaults):</p>
-                <ul>
-                    <li><code>temperature</code> (0.0-2.0): Randomness/creativity level</li>
+                    <li><code>temperature</code>: Randomness (0.0-2.0)</li>
                     <li><code>max_tokens</code>: Maximum response length</li>
-                    <li><code>top_p</code> (0.0-1.0): Nucleus sampling threshold</li>
-                    <li><code>top_k</code>: Limit sampling to top K tokens</li>
-                    <li><code>frequency_penalty</code> (-2.0 to 2.0): Reduce word repetition</li>
-                    <li><code>presence_penalty</code> (-2.0 to 2.0): Encourage topic diversity</li>
-                    <li><code>repetition_penalty</code> (≥0): Alternative repetition control</li>
-                    <li><code>min_p</code> (0.0-1.0): Minimum probability threshold</li>
-                    <li><code>top_a</code> (0.0-1.0): Adaptive sampling threshold</li>
-                    <li><code>seed</code>: For deterministic outputs</li>
-                    <li><code>logit_bias</code>: Adjust token probabilities</li>
-                    <li><code>response_format</code>: e.g., {"type": "json_object"}</li>
-                    <li><code>stop</code>: Array of stop sequences</li>
-                    <li><code>tools</code>: Function calling definitions</li>
-                    <li><code>tool_choice</code>: Force or disable tool use</li>
-                    <li><code>reasoning</code>: Enable extended thinking/reasoning mode with {"effort": "high"|"medium"|"low"} or {"max_tokens": number}</li>
-                    <li><code>provider</code>: Force specific provider (e.g., "Anthropic")</li>
-                    <li><code>models</code>: Fallback model array</li>
-                    <li><code>route</code>: "fallback" to use model list</li>
-                    <li><code>transforms</code>: ["middle-out"] for content filtering</li>
+                    <li><code>top_p</code>: Nucleus sampling</li>
+                    <li><code>beta_headers</code>: Anthropic beta features</li>
+                    <li><code>tools</code>: Function calling config</li>
+                    <li>...and many more</li>
                 </ul>
 
                 <h3>Data Management</h3>
@@ -725,10 +672,17 @@
                 <div id="prompts-list"></div>
             </div>
             <div class="settings-section">
-                <h3>Add OpenRouter API Key</h3>
-                <p style="font-size: 13px; color: #888; margin-bottom: 12px;">Get your API key from <a href="https://openrouter.ai/keys" target="_blank" style="color: #4a9eff;">openrouter.ai/keys</a></p>
-                <input type="text" id="new-key-name" placeholder="Key name (e.g., Personal, Work)" style="margin-bottom: 8px;">
-                <input type="password" id="new-key-value" placeholder="Paste your OpenRouter API key here" style="margin-bottom: 8px;">
+                <h3>Add API Key</h3>
+                <input type="text" id="new-key-name" placeholder="Key name (e.g., My Anthropic Key, Work OpenAI)" style="margin-bottom: 8px;">
+                <select id="new-key-provider" style="margin-bottom: 8px;">
+                    <option value="">Select provider...</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="google">Google</option>
+                    <option value="xai">xAI</option>
+                    <option value="openrouter">OpenRouter</option>
+                </select>
+                <input type="password" id="new-key-value" placeholder="API key" style="margin-bottom: 8px;">
                 <button class="primary" onclick="addApiKey()">Add API Key</button>
             </div>
             <div class="settings-section">
@@ -736,27 +690,17 @@
                 <div id="api-keys-list"></div>
             </div>
             <div class="settings-section">
-                <h3>Browse OpenRouter Models</h3>
-                <p style="font-size: 13px; color: #888; margin-bottom: 12px;">Fetch and search available models from OpenRouter</p>
-                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                    <button class="primary" onclick="fetchOpenRouterModels()">Load Models</button>
-                    <select id="model-sort" onchange="sortAndDisplayModels()" style="width: 150px;">
-                        <option value="date">Sort by Date</option>
-                        <option value="name">Sort by Name</option>
-                        <option value="context">Sort by Context</option>
-                    </select>
-                </div>
-                <div style="margin-bottom: 12px;">
-                    <input type="text" id="model-search" placeholder="Search models..." style="width: 100%;" oninput="filterModels()">
-                </div>
-                <div id="models-browser" style="max-height: 400px; overflow-y: auto; background: #1a1a1a; padding: 12px; border-radius: 6px; display: none;">
-                    <p style="color: #888;">Click "Load Models" to browse available models</p>
-                </div>
-            </div>
-            <div class="settings-section">
                 <h3>Add New Model</h3>
-                <input type="text" id="new-model-name" placeholder="Model name (e.g., Claude 3.5 Sonnet)" style="margin-bottom: 8px;">
-                <textarea id="new-model-config" placeholder="Model configuration (JSON)..." style="min-height: 250px;"></textarea>
+                <input type="text" id="new-model-name" placeholder="Model name (e.g., My Claude Model)" style="margin-bottom: 8px;">
+                <select id="new-model-template" style="margin-bottom: 8px;">
+                    <option value="">Select a template...</option>
+                    <option value="anthropic">Anthropic (Claude)</option>
+                    <option value="openai">OpenAI (GPT)</option>
+                    <option value="google">Google (Gemini)</option>
+                    <option value="xai">xAI (Grok)</option>
+                    <option value="openrouter">OpenRouter</option>
+                </select>
+                <textarea id="new-model-config" placeholder="Model configuration will appear here when you select a template..." style="min-height: 250px;"></textarea>
                 <button class="primary" onclick="addModel()">Add Model</button>
             </div>
             <div class="settings-section">
@@ -784,12 +728,10 @@
         let isStreaming = false;
         let selectedModelIndices = [];
         let multiModelMode = 'parallel';
+        let iterations = 1;
         let rotationIndex = 0;
         let isAutonomousRunning = false;
         let autonomousRounds = 0;
-        let availableModels = [];
-        let filteredModels = [];
-        let currentAbortControllers = [];
 
         // Initialize
         function init() {
@@ -852,6 +794,7 @@
             }
 
             multiModelMode = localStorage.getItem('multiModelMode') || 'parallel';
+            iterations = parseInt(localStorage.getItem('iterations') || '1');
             rotationIndex = parseInt(localStorage.getItem('rotationIndex') || '0');
         }
 
@@ -863,6 +806,7 @@
             localStorage.setItem('currentConversation', JSON.stringify(currentConversation));
             localStorage.setItem('selectedModelIndices', JSON.stringify(selectedModelIndices));
             localStorage.setItem('multiModelMode', multiModelMode);
+            localStorage.setItem('iterations', iterations.toString());
             localStorage.setItem('rotationIndex', rotationIndex.toString());
         }
 
@@ -877,9 +821,6 @@
 
             // Send message
             document.getElementById('send-btn').addEventListener('click', sendMessage);
-
-            // Stop generation
-            document.getElementById('stop-btn').addEventListener('click', stopGeneration);
 
             // File upload
             document.getElementById('file-input').addEventListener('change', handleFileUpload);
@@ -907,46 +848,125 @@
             // Autonomous button
             document.getElementById('auto-btn').addEventListener('click', toggleAutonomous);
 
-            // Pre-populate OpenRouter config
-            updateModelConfigTemplate();
-        }
+            // Template selector - show template config
+            document.getElementById('new-model-template').addEventListener('change', (e) => {
+                const template = e.target.value;
+                const configTextarea = document.getElementById('new-model-config');
 
-        function updateModelConfigTemplate() {
-            const configTextarea = document.getElementById('new-model-config');
-            const openrouterKeys = apiKeys.filter(k => k.provider === 'openrouter');
-            const apiKeyRef = openrouterKeys.length > 0
-                ? `"api_key_id": "${openrouterKeys[0].id}"`
-                : `"api_key": "your-openrouter-api-key-here"`;
+                // Get available API keys for the selected template
+                const templateKeys = apiKeys.filter(k => k.provider === template);
+                const apiKeyRef = templateKeys.length > 0
+                    ? `"api_key_id": "${templateKeys[0].id}"`
+                    : `"api_key": "your-api-key-here"`;
 
-            configTextarea.value = `"endpoint": "https://openrouter.ai/api/v1/chat/completions",
+                const templates = {
+                    anthropic: `"template": "anthropic",
+  "endpoint": "https://api.anthropic.com/v1/messages",
+  "model_id": "claude-3-5-sonnet-20241022",
+  ${apiKeyRef},
+  "system_prompt": "",
+  "max_tokens": 8096,
+  "temperature": 1.0,
+  "top_p": 1.0,
+  "top_k": null,
+  "stop_sequences": null,
+  "metadata": null,
+  "headers": {},
+  "beta_headers": []
+`,
+                    openai: `"template": "openai",
+  "endpoint": "https://api.openai.com/v1/chat/completions",
+  "model_id": "gpt-4-turbo",
+  ${apiKeyRef},
+  "system_prompt": "",
+  "max_tokens": null,
+  "temperature": 1.0,
+  "top_p": 1.0,
+  "frequency_penalty": 0,
+  "presence_penalty": 0,
+  "stop": null,
+  "n": 1,
+  "stream_options": null,
+  "response_format": null,
+  "seed": null,
+  "logprobs": null,
+  "top_logprobs": null,
+  "user": null,
+  "tools": null,
+  "tool_choice": null,
+  "headers": {}
+`,
+                    google: `"template": "google",
+  "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:streamGenerateContent",
+  "model_id": "gemini-1.5-pro",
+  ${apiKeyRef},
+  "system_prompt": "",
+  "temperature": 1.0,
+  "top_p": 1.0,
+  "top_k": null,
+  "max_output_tokens": null,
+  "candidate_count": 1,
+  "stop_sequences": null,
+  "safety_settings": null,
+  "tools": null,
+  "tool_config": null,
+  "headers": {}
+`,
+                    xai: `"template": "xai",
+  "endpoint": "https://api.x.ai/v1/chat/completions",
+  "model_id": "grok-beta",
+  ${apiKeyRef},
+  "system_prompt": "",
+  "max_tokens": null,
+  "temperature": 1.0,
+  "top_p": 1.0,
+  "frequency_penalty": 0,
+  "presence_penalty": 0,
+  "stop": null,
+  "n": 1,
+  "stream_options": null,
+  "response_format": null,
+  "seed": null,
+  "logprobs": null,
+  "top_logprobs": null,
+  "user": null,
+  "tools": null,
+  "tool_choice": null,
+  "headers": {}
+`,
+                    openrouter: `"template": "openrouter",
+  "endpoint": "https://openrouter.ai/api/v1/chat/completions",
   "model_id": "anthropic/claude-3.5-sonnet",
   ${apiKeyRef},
   "system_prompt": "",
   "max_tokens": null,
   "temperature": 1.0,
   "top_p": 1.0,
-  "top_k": 0,
   "frequency_penalty": 0,
   "presence_penalty": 0,
-  "repetition_penalty": 1,
-  "min_p": 0,
-  "top_a": 0,
+  "stop": null,
+  "n": 1,
+  "stream_options": null,
+  "response_format": null,
   "seed": null,
-  "logit_bias": null,
   "logprobs": null,
   "top_logprobs": null,
-  "response_format": null,
-  "stop": null,
+  "user": null,
   "tools": null,
   "tool_choice": null,
   "reasoning": {
     "effort": "medium"
   },
-  "provider": null,
+  "transforms": null,
   "models": null,
   "route": null,
-  "transforms": null
-`;
+  "provider": null,
+  "headers": {}
+`
+                };
+
+                configTextarea.value = templates[template] || '';
+            });
         }
 
         function switchTab(tabName) {
@@ -960,7 +980,6 @@
                 updateModelsList();
                 updateApiKeysList();
                 updatePromptsList();
-                updateModelConfigTemplate();
             }
         }
 
@@ -1065,12 +1084,22 @@
                 radio.checked = (radio.value === multiModelMode);
             });
 
+            // Set the current iterations value
+            document.getElementById('iterations-input').value = iterations;
+
             popup.style.display = 'flex';
         }
 
         function closeModelPicker() {
+            // Save iterations value
+            const iterationsInput = document.getElementById('iterations-input');
+            iterations = parseInt(iterationsInput.value) || 1;
+            if (iterations < 1) iterations = 1;
+            if (iterations > 100) iterations = 100;
+
             document.getElementById('model-picker-popup').style.display = 'none';
             updateUIForMode();
+            saveToStorage();
         }
 
         function updateUIForMode() {
@@ -1112,7 +1141,7 @@
             autoBtn.textContent = 'Stop Auto';
             autoBtn.style.background = '#ff4a4a';
 
-            while (isAutonomousRunning) {
+            while (isAutonomousRunning && autonomousRounds < iterations) {
                 try {
                     await handleAutonomousRound();
                     autonomousRounds++;
@@ -1126,6 +1155,13 @@
                     autoBtn.style.background = '#4a9eff';
                     alert('Error in autonomous mode: ' + error.message);
                 }
+            }
+
+            // Reset button after iterations complete
+            if (isAutonomousRunning) {
+                isAutonomousRunning = false;
+                autoBtn.textContent = 'Start Auto';
+                autoBtn.style.background = '#4a9eff';
             }
         }
 
@@ -1202,9 +1238,10 @@
 
         function addApiKey() {
             const name = document.getElementById('new-key-name').value.trim();
+            const provider = document.getElementById('new-key-provider').value;
             const value = document.getElementById('new-key-value').value.trim();
 
-            if (!name || !value) {
+            if (!name || !provider || !value) {
                 alert('Please fill in all fields');
                 return;
             }
@@ -1212,17 +1249,17 @@
             const apiKey = {
                 id: Date.now().toString(),
                 name,
-                provider: 'openrouter',  // Always OpenRouter
+                provider,
                 value
             };
 
             apiKeys.push(apiKey);
             saveToStorage();
             updateApiKeysList();
-            updateModelConfigTemplate();  // Update model template with new key
 
             // Clear form
             document.getElementById('new-key-name').value = '';
+            document.getElementById('new-key-provider').value = '';
             document.getElementById('new-key-value').value = '';
 
             alert('API key added successfully!');
@@ -1233,7 +1270,6 @@
             apiKeys = apiKeys.filter(k => k.id !== id);
             saveToStorage();
             updateApiKeysList();
-            updateModelConfigTemplate();  // Update template after deleting key
         }
 
         function updateApiKeysList() {
@@ -1285,8 +1321,8 @@
                 const config = JSON.parse(jsonText);
 
                 // Validate required fields
-                if (!config.endpoint || !config.model_id || (!config.api_key && !config.api_key_id)) {
-                    alert('Configuration must include: endpoint, model_id, and api_key (or api_key_id)');
+                if (!config.template || !config.endpoint || !config.model_id || (!config.api_key && !config.api_key_id)) {
+                    alert('Configuration must include: template, endpoint, model_id, and api_key (or api_key_id)');
                     return;
                 }
 
@@ -1302,6 +1338,7 @@
 
                 // Clear form
                 document.getElementById('new-model-name').value = '';
+                document.getElementById('new-model-template').value = '';
                 document.getElementById('new-model-config').value = '';
 
                 alert('Model added successfully!');
@@ -1315,6 +1352,7 @@
             const { name, ...config } = model;
 
             document.getElementById('new-model-name').value = name;
+            document.getElementById('new-model-template').value = config.template;
 
             // Convert config back to formatted JSON without outer braces
             const configJson = JSON.stringify(config, null, 2);
@@ -1362,6 +1400,7 @@
                 div.innerHTML = `
                     <h4>${escapeHtml(model.name)}</h4>
                     <div style="font-size: 13px; color: #aaa; margin-bottom: 8px;">
+                        <strong>Template:</strong> ${escapeHtml(model.template)} |
                         <strong>Model ID:</strong> ${escapeHtml(model.model_id)}
                     </div>
                     <details style="margin-bottom: 8px;">
@@ -1375,127 +1414,6 @@
                 `;
                 list.appendChild(div);
             });
-        }
-
-        async function fetchOpenRouterModels() {
-            const browser = document.getElementById('models-browser');
-            browser.style.display = 'block';
-            browser.innerHTML = '<p style="color: #888;">Loading models from OpenRouter...</p>';
-
-            try {
-                const response = await fetch('https://openrouter.ai/api/v1/models');
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch models: ${response.status}`);
-                }
-
-                const data = await response.json();
-                availableModels = data.data || [];
-                filteredModels = [...availableModels];
-
-                sortAndDisplayModels();
-            } catch (error) {
-                browser.innerHTML = `<p style="color: #ff6b6b;">Error loading models: ${escapeHtml(error.message)}</p>`;
-                console.error('Error fetching models:', error);
-            }
-        }
-
-        function filterModels() {
-            const searchTerm = document.getElementById('model-search').value.toLowerCase();
-
-            if (!searchTerm) {
-                filteredModels = [...availableModels];
-            } else {
-                filteredModels = availableModels.filter(model => {
-                    const searchText = `${model.id} ${model.name || ''} ${model.description || ''}`.toLowerCase();
-                    return searchText.includes(searchTerm);
-                });
-            }
-
-            sortAndDisplayModels();
-        }
-
-        function sortAndDisplayModels() {
-            const sortBy = document.getElementById('model-sort').value;
-
-            // Sort
-            filteredModels.sort((a, b) => {
-                if (sortBy === 'date') {
-                    const dateA = new Date(a.created || 0);
-                    const dateB = new Date(b.created || 0);
-                    return dateB - dateA; // Newest first
-                } else if (sortBy === 'name') {
-                    return (a.name || a.id).localeCompare(b.name || b.id);
-                } else if (sortBy === 'context') {
-                    return (b.context_length || 0) - (a.context_length || 0); // Largest first
-                }
-                return 0;
-            });
-
-            displayModels();
-        }
-
-        function displayModels() {
-            const browser = document.getElementById('models-browser');
-
-            if (filteredModels.length === 0) {
-                browser.innerHTML = '<p style="color: #888;">No models found matching your search.</p>';
-                return;
-            }
-
-            let html = `<div style="font-size: 13px; color: #888; margin-bottom: 12px;">Found ${filteredModels.length} models. Click to select.</div>`;
-
-            filteredModels.forEach(model => {
-                const pricing = model.pricing || {};
-                const promptPrice = pricing.prompt ? `$${(parseFloat(pricing.prompt) * 1000000).toFixed(2)}/M` : 'N/A';
-                const completionPrice = pricing.completion ? `$${(parseFloat(pricing.completion) * 1000000).toFixed(2)}/M` : 'N/A';
-                const contextLength = model.context_length ? `${(model.context_length / 1000).toFixed(0)}K` : 'N/A';
-                const created = model.created ? new Date(model.created * 1000).toLocaleDateString() : 'Unknown';
-
-                html += `
-                    <div style="background: #2a2a2a; padding: 12px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; border: 2px solid transparent;"
-                         onclick="selectModel('${escapeHtml(model.id)}', '${escapeHtml(model.name || model.id)}')"
-                         onmouseover="this.style.borderColor='#4a9eff'"
-                         onmouseout="this.style.borderColor='transparent'">
-                        <div style="font-weight: 600; color: #e0e0e0; margin-bottom: 4px;">${escapeHtml(model.name || model.id)}</div>
-                        <div style="font-size: 12px; color: #888; font-family: monospace; margin-bottom: 6px;">${escapeHtml(model.id)}</div>
-                        <div style="font-size: 12px; color: #aaa; margin-bottom: 6px;">${escapeHtml(model.description || 'No description')}</div>
-                        <div style="font-size: 11px; color: #666; display: flex; gap: 12px;">
-                            <span>Context: ${contextLength}</span>
-                            <span>Prompt: ${promptPrice}</span>
-                            <span>Completion: ${completionPrice}</span>
-                            <span>Released: ${created}</span>
-                        </div>
-                    </div>
-                `;
-            });
-
-            browser.innerHTML = html;
-        }
-
-        function selectModel(modelId, modelName) {
-            // Populate the Add New Model form
-            document.getElementById('new-model-name').value = modelName;
-
-            // Get the current config template
-            const configTextarea = document.getElementById('new-model-config');
-            let currentConfig = configTextarea.value;
-
-            // Replace the model_id in the template
-            currentConfig = currentConfig.replace(
-                /"model_id":\s*"[^"]*"/,
-                `"model_id": "${modelId}"`
-            );
-
-            configTextarea.value = currentConfig;
-
-            // Scroll to the Add New Model section
-            document.querySelector('#new-model-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            // Flash the textarea to show it was updated
-            configTextarea.style.border = '2px solid #4a9eff';
-            setTimeout(() => {
-                configTextarea.style.border = '';
-            }, 1000);
         }
 
         async function handleFileUpload(e) {
@@ -1550,33 +1468,6 @@
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
 
-        function showStopButton() {
-            document.getElementById('send-btn').style.display = 'none';
-            document.getElementById('stop-btn').style.display = 'block';
-        }
-
-        function hideStopButton() {
-            document.getElementById('stop-btn').style.display = 'none';
-            document.getElementById('send-btn').style.display = 'block';
-        }
-
-        function stopGeneration() {
-            // Abort all ongoing requests
-            currentAbortControllers.forEach(controller => {
-                try {
-                    controller.abort();
-                } catch (e) {
-                    console.error('Error aborting request:', e);
-                }
-            });
-            currentAbortControllers = [];
-
-            // Reset UI state
-            isStreaming = false;
-            hideStopButton();
-            document.getElementById('send-btn').disabled = false;
-        }
-
         async function sendMessage() {
             if (isStreaming) return;
 
@@ -1602,6 +1493,7 @@
             };
 
             if (editingMessageIndex !== null) {
+                // Replace message and truncate conversation
                 currentConversation = currentConversation.slice(0, editingMessageIndex);
                 currentConversation.push(userMessage);
                 editingMessageIndex = null;
@@ -1617,9 +1509,8 @@
 
             // Start streaming response
             isStreaming = true;
-            currentAbortControllers = [];
-            showStopButton();
-            renderConversation();
+            document.getElementById('send-btn').disabled = true;
+            renderConversation(); // Show typing indicator
 
             try {
                 if (multiModelMode === 'parallel') {
@@ -1631,11 +1522,9 @@
                 }
             } catch (error) {
                 console.error('Error:', error);
-
-                // Add user-friendly error message
                 const errorMessage = {
                     role: 'assistant',
-                    content: `❌ Error: ${error.message}\n\nTroubleshooting:\n• Check your API key in Settings\n• Verify your model configuration\n• Ensure you have internet connection`,
+                    content: 'Error: ' + error.message,
                     timestamp: Date.now()
                 };
                 currentConversation.push(errorMessage);
@@ -1643,88 +1532,94 @@
             }
 
             isStreaming = false;
-            currentAbortControllers = [];
-            hideStopButton();
-            renderConversation();
+            document.getElementById('send-btn').disabled = false;
+            renderConversation(); // Hide typing indicator
             saveToStorage();
         }
 
         async function handleParallelMode() {
-            // All models answer independently in parallel
-            const promises = selectedModelIndices.map(async (modelIndex) => {
-                const model = models[modelIndex];
-                const assistantMessage = {
-                    role: 'assistant',
-                    content: '',
-                    thinking: '',
-                    images: [],
-                    modelName: model.name,
-                    timestamp: Date.now()
-                };
-                currentConversation.push(assistantMessage);
-                renderConversation();
-                await streamResponse(model, assistantMessage);
-            });
+            // All models answer independently in parallel, N times
+            for (let iteration = 0; iteration < iterations; iteration++) {
+                const promises = selectedModelIndices.map(async (modelIndex) => {
+                    const model = models[modelIndex];
+                    const assistantMessage = {
+                        role: 'assistant',
+                        content: '',
+                        thinking: '',
+                        modelName: model.name,
+                        timestamp: Date.now()
+                    };
+                    currentConversation.push(assistantMessage);
+                    renderConversation();
+                    await streamResponse(model, assistantMessage);
+                });
 
-            await Promise.all(promises);
+                await Promise.all(promises);
+
+                // Save after each iteration
+                saveToStorage();
+                renderConversation();
+            }
         }
 
         async function handleSerialMode() {
-            // Models answer sequentially, each seeing previous responses
-            for (let i = 0; i < selectedModelIndices.length; i++) {
-                const modelIndex = selectedModelIndices[i];
-                const model = models[modelIndex];
-                const assistantMessage = {
-                    role: 'assistant',
-                    content: '',
-                    thinking: '',
-                    images: [],
-                    modelName: model.name,
-                    timestamp: Date.now()
-                };
-                currentConversation.push(assistantMessage);
-                renderConversation();
-                await streamResponse(model, assistantMessage);
+            // Models answer sequentially, each seeing previous responses, N times
+            for (let iteration = 0; iteration < iterations; iteration++) {
+                for (let i = 0; i < selectedModelIndices.length; i++) {
+                    const modelIndex = selectedModelIndices[i];
+                    const model = models[modelIndex];
+                    const assistantMessage = {
+                        role: 'assistant',
+                        content: '',
+                        thinking: '',
+                        modelName: model.name,
+                        timestamp: Date.now()
+                    };
+                    currentConversation.push(assistantMessage);
+                    renderConversation();
+                    await streamResponse(model, assistantMessage);
 
-                // Save and render after each model completes so next model sees the response
-                saveToStorage();
-                renderConversation();
+                    // Save and render after each model completes so next model sees the response
+                    saveToStorage();
+                    renderConversation();
+                }
             }
         }
 
         async function handleRotatingMode() {
-            // Serial mode with rotating order
-            const orderedIndices = [...selectedModelIndices];
+            // Serial mode with rotating order, N times
+            for (let iteration = 0; iteration < iterations; iteration++) {
+                const orderedIndices = [...selectedModelIndices];
 
-            // Rotate based on rotationIndex
-            for (let i = 0; i < rotationIndex % orderedIndices.length; i++) {
-                orderedIndices.push(orderedIndices.shift());
-            }
+                // Rotate based on rotationIndex
+                for (let i = 0; i < rotationIndex % orderedIndices.length; i++) {
+                    orderedIndices.push(orderedIndices.shift());
+                }
 
-            // Process in rotated order
-            for (let i = 0; i < orderedIndices.length; i++) {
-                const modelIndex = orderedIndices[i];
-                const model = models[modelIndex];
-                const assistantMessage = {
-                    role: 'assistant',
-                    content: '',
-                    thinking: '',
-                    images: [],
-                    modelName: model.name,
-                    timestamp: Date.now()
-                };
-                currentConversation.push(assistantMessage);
-                renderConversation();
-                await streamResponse(model, assistantMessage);
+                // Process in rotated order
+                for (let i = 0; i < orderedIndices.length; i++) {
+                    const modelIndex = orderedIndices[i];
+                    const model = models[modelIndex];
+                    const assistantMessage = {
+                        role: 'assistant',
+                        content: '',
+                        thinking: '',
+                        modelName: model.name,
+                        timestamp: Date.now()
+                    };
+                    currentConversation.push(assistantMessage);
+                    renderConversation();
+                    await streamResponse(model, assistantMessage);
 
-                // Save and render after each model completes so next model sees the response
+                    // Save and render after each model completes so next model sees the response
+                    saveToStorage();
+                    renderConversation();
+                }
+
+                // Increment rotation for next iteration
+                rotationIndex++;
                 saveToStorage();
-                renderConversation();
             }
-
-            // Increment rotation for next time
-            rotationIndex++;
-            saveToStorage();
         }
 
         async function handleAutonomousRound() {
@@ -1821,7 +1716,20 @@
 
         async function streamResponse(model, assistantMessage) {
             const messages = buildMessagesForAPI(model, assistantMessage);
-            await streamOpenRouter(model, messages, assistantMessage);
+
+            if (model.template === 'anthropic') {
+                await streamAnthropic(model, messages, assistantMessage);
+            } else if (model.template === 'openai') {
+                await streamOpenAI(model, messages, assistantMessage);
+            } else if (model.template === 'google') {
+                await streamGoogle(model, messages, assistantMessage);
+            } else if (model.template === 'xai') {
+                await streamXAI(model, messages, assistantMessage);
+            } else if (model.template === 'openrouter') {
+                await streamOpenRouter(model, messages, assistantMessage);
+            } else {
+                await streamCustom(model, messages, assistantMessage);
+            }
         }
 
         function buildMessagesForAPI(model, excludeMessage = null) {
@@ -1836,7 +1744,7 @@
 
                     // Build content based on whether we have files
                     if (msg.files && msg.files.length > 0) {
-                        // Has files - use array format (OpenAI-compatible)
+                        // Has files - use array format
                         content = [];
 
                         if (msg.content) {
@@ -1845,15 +1753,49 @@
 
                         for (const file of msg.files) {
                             if (file.type.startsWith('image/')) {
-                                // OpenAI-compatible format (used by OpenRouter)
+                                if (model.template === 'anthropic') {
+                                    // Anthropic format
+                                    content.push({
+                                        type: 'image',
+                                        source: {
+                                            type: 'base64',
+                                            media_type: file.type,
+                                            data: file.base64
+                                        }
+                                    });
+                                } else if (model.template === 'openai' || model.template === 'xai' || model.template === 'openrouter') {
+                                    // OpenAI-compatible format
+                                    content.push({
+                                        type: 'image_url',
+                                        image_url: {
+                                            url: `data:${file.type};base64,${file.base64}`
+                                        }
+                                    });
+                                } else if (model.template === 'google') {
+                                    // Google format - handled separately below
+                                    content.push({
+                                        type: 'google_image',
+                                        mime_type: file.type,
+                                        data: file.base64
+                                    });
+                                } else {
+                                    // Unsupported - just mention it
+                                    content.push({
+                                        type: 'text',
+                                        text: `[Attached image: ${file.name}]`
+                                    });
+                                }
+                            } else if (file.type === 'application/pdf' && model.template === 'anthropic') {
                                 content.push({
-                                    type: 'image_url',
-                                    image_url: {
-                                        url: `data:${file.type};base64,${file.base64}`
+                                    type: 'document',
+                                    source: {
+                                        type: 'base64',
+                                        media_type: 'application/pdf',
+                                        data: file.base64
                                     }
                                 });
                             } else {
-                                // For other file types, just mention it
+                                // For other unsupported file types, just mention it
                                 content.push({
                                     type: 'text',
                                     text: `[Attached file: ${file.name}]`
@@ -1891,6 +1833,383 @@
             return messages;
         }
 
+        async function streamAnthropic(model, messages, assistantMessage) {
+            const body = {
+                model: model.model_id,
+                max_tokens: model.max_tokens || 8096,
+                messages: messages,
+                stream: true
+            };
+
+            // Add optional parameters if specified
+            if (model.temperature !== undefined && model.temperature !== null) {
+                body.temperature = model.temperature;
+            }
+            if (model.top_p !== undefined && model.top_p !== null) {
+                body.top_p = model.top_p;
+            }
+            if (model.top_k !== undefined && model.top_k !== null) {
+                body.top_k = model.top_k;
+            }
+            if (model.stop_sequences && model.stop_sequences.length > 0) {
+                body.stop_sequences = model.stop_sequences;
+            }
+            if (model.metadata) {
+                body.metadata = model.metadata;
+            }
+
+            // Add system prompt with identity
+            const systemPrompt = buildSystemPrompt(model);
+            if (systemPrompt) {
+                body.system = systemPrompt;
+            }
+
+            console.log('Anthropic request:', { endpoint: model.endpoint, body });
+
+            const apiKey = resolveApiKey(model);
+
+            // Build headers
+            const headers = {
+                'Content-Type': 'application/json',
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true',
+                'x-api-key': apiKey
+            };
+
+            // Add custom headers
+            if (model.headers) {
+                Object.assign(headers, model.headers);
+            }
+
+            // Add beta headers (features like extended thinking, prompt caching, etc.)
+            if (model.beta_headers && model.beta_headers.length > 0) {
+                headers['anthropic-beta'] = model.beta_headers.join(',');
+            }
+
+            let response;
+            try {
+                response = await fetch(model.endpoint, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+            } catch (e) {
+                console.error('Fetch error:', e);
+                throw new Error(`Network error: ${e.message}. Check your internet connection and API endpoint.`);
+            }
+
+            if (!response.ok) {
+                let errorText;
+                try {
+                    errorText = await response.text();
+                    console.error('API error response:', errorText);
+                } catch (e) {
+                    errorText = 'Could not read error response';
+                }
+                throw new Error(`API error ${response.status}: ${errorText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+                        
+                        try {
+                            const parsed = JSON.parse(data);
+                            
+                            if (parsed.type === 'content_block_start') {
+                                if (parsed.content_block?.type === 'thinking') {
+                                    assistantMessage.hasThinking = true;
+                                }
+                            } else if (parsed.type === 'content_block_delta') {
+                                if (parsed.delta?.type === 'thinking_delta') {
+                                    assistantMessage.thinking += parsed.delta.thinking || '';
+                                } else if (parsed.delta?.type === 'text_delta') {
+                                    assistantMessage.content += parsed.delta.text || '';
+                                }
+                                renderConversation();
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE:', e, 'Line:', line);
+                        }
+                    }
+                }
+            }
+        }
+
+        async function streamOpenAI(model, messages, assistantMessage) {
+            const body = {
+                model: model.model_id,
+                messages: messages,
+                stream: true
+            };
+
+            // Add optional parameters if specified
+            if (model.max_tokens !== undefined && model.max_tokens !== null) {
+                body.max_tokens = model.max_tokens;
+            }
+            if (model.temperature !== undefined && model.temperature !== null) {
+                body.temperature = model.temperature;
+            }
+            if (model.top_p !== undefined && model.top_p !== null) {
+                body.top_p = model.top_p;
+            }
+            if (model.frequency_penalty !== undefined && model.frequency_penalty !== null) {
+                body.frequency_penalty = model.frequency_penalty;
+            }
+            if (model.presence_penalty !== undefined && model.presence_penalty !== null) {
+                body.presence_penalty = model.presence_penalty;
+            }
+            if (model.stop && model.stop.length > 0) {
+                body.stop = model.stop;
+            }
+            if (model.n !== undefined && model.n !== null) {
+                body.n = model.n;
+            }
+            if (model.stream_options) {
+                body.stream_options = model.stream_options;
+            }
+            if (model.response_format) {
+                body.response_format = model.response_format;
+            }
+            if (model.seed !== undefined && model.seed !== null) {
+                body.seed = model.seed;
+            }
+            if (model.logprobs !== undefined && model.logprobs !== null) {
+                body.logprobs = model.logprobs;
+            }
+            if (model.top_logprobs !== undefined && model.top_logprobs !== null) {
+                body.top_logprobs = model.top_logprobs;
+            }
+            if (model.user) {
+                body.user = model.user;
+            }
+            if (model.tools) {
+                body.tools = model.tools;
+            }
+            if (model.tool_choice) {
+                body.tool_choice = model.tool_choice;
+            }
+
+            // Add system prompt with identity
+            const systemPrompt = buildSystemPrompt(model);
+            if (systemPrompt) {
+                body.messages.unshift({ role: 'system', content: systemPrompt });
+            }
+
+            console.log('OpenAI request:', { endpoint: model.endpoint, body });
+
+            const apiKey = resolveApiKey(model);
+
+            // Build headers
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            };
+
+            // Add custom headers
+            if (model.headers) {
+                Object.assign(headers, model.headers);
+            }
+
+            let response;
+            try {
+                response = await fetch(model.endpoint, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+            } catch (e) {
+                console.error('Fetch error:', e);
+                throw new Error(`Network error: ${e.message}. Check your internet connection and API endpoint.`);
+            }
+
+            if (!response.ok) {
+                let errorText;
+                try {
+                    errorText = await response.text();
+                    console.error('API error response:', errorText);
+                } catch (e) {
+                    errorText = 'Could not read error response';
+                }
+                throw new Error(`API error ${response.status}: ${errorText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+                        
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta?.content;
+                            if (delta) {
+                                assistantMessage.content += delta;
+                                renderConversation();
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE:', e, 'Line:', line);
+                        }
+                    }
+                }
+            }
+        }
+
+        async function streamXAI(model, messages, assistantMessage) {
+            // xAI uses OpenAI-compatible API
+            const body = {
+                model: model.model_id,
+                messages: messages,
+                stream: true
+            };
+
+            // Add optional parameters if specified
+            if (model.max_tokens !== undefined && model.max_tokens !== null) {
+                body.max_tokens = model.max_tokens;
+            }
+            if (model.temperature !== undefined && model.temperature !== null) {
+                body.temperature = model.temperature;
+            }
+            if (model.top_p !== undefined && model.top_p !== null) {
+                body.top_p = model.top_p;
+            }
+            if (model.frequency_penalty !== undefined && model.frequency_penalty !== null) {
+                body.frequency_penalty = model.frequency_penalty;
+            }
+            if (model.presence_penalty !== undefined && model.presence_penalty !== null) {
+                body.presence_penalty = model.presence_penalty;
+            }
+            if (model.stop && model.stop.length > 0) {
+                body.stop = model.stop;
+            }
+            if (model.n !== undefined && model.n !== null) {
+                body.n = model.n;
+            }
+            if (model.stream_options) {
+                body.stream_options = model.stream_options;
+            }
+            if (model.response_format) {
+                body.response_format = model.response_format;
+            }
+            if (model.seed !== undefined && model.seed !== null) {
+                body.seed = model.seed;
+            }
+            if (model.logprobs !== undefined && model.logprobs !== null) {
+                body.logprobs = model.logprobs;
+            }
+            if (model.top_logprobs !== undefined && model.top_logprobs !== null) {
+                body.top_logprobs = model.top_logprobs;
+            }
+            if (model.user) {
+                body.user = model.user;
+            }
+            if (model.tools) {
+                body.tools = model.tools;
+            }
+            if (model.tool_choice) {
+                body.tool_choice = model.tool_choice;
+            }
+
+            // Add system prompt with identity
+            const systemPrompt = buildSystemPrompt(model);
+            if (systemPrompt) {
+                body.messages.unshift({ role: 'system', content: systemPrompt });
+            }
+
+            console.log('xAI request:', { endpoint: model.endpoint, body });
+
+            const apiKey = resolveApiKey(model);
+
+            // Build headers
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            };
+
+            // Add custom headers
+            if (model.headers) {
+                Object.assign(headers, model.headers);
+            }
+
+            let response;
+            try {
+                response = await fetch(model.endpoint, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+            } catch (e) {
+                console.error('Fetch error:', e);
+                throw new Error(`Network error: ${e.message}. Check your internet connection and API endpoint.`);
+            }
+
+            if (!response.ok) {
+                let errorText;
+                try {
+                    errorText = await response.text();
+                    console.error('API error response:', errorText);
+                } catch (e) {
+                    errorText = 'Could not read error response';
+                }
+                throw new Error(`API error ${response.status}: ${errorText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta?.content;
+                            if (delta) {
+                                assistantMessage.content += delta;
+                                renderConversation();
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE:', e, 'Line:', line);
+                        }
+                    }
+                }
+            }
+        }
+
         async function streamOpenRouter(model, messages, assistantMessage) {
             // OpenRouter uses OpenAI-compatible API with additional options
             const body = {
@@ -1909,29 +2228,26 @@
             if (model.top_p !== undefined && model.top_p !== null) {
                 body.top_p = model.top_p;
             }
-            if (model.top_k !== undefined && model.top_k !== null && model.top_k !== 0) {
-                body.top_k = model.top_k;
-            }
             if (model.frequency_penalty !== undefined && model.frequency_penalty !== null) {
                 body.frequency_penalty = model.frequency_penalty;
             }
             if (model.presence_penalty !== undefined && model.presence_penalty !== null) {
                 body.presence_penalty = model.presence_penalty;
             }
-            if (model.repetition_penalty !== undefined && model.repetition_penalty !== null && model.repetition_penalty !== 1) {
-                body.repetition_penalty = model.repetition_penalty;
+            if (model.stop && model.stop.length > 0) {
+                body.stop = model.stop;
             }
-            if (model.min_p !== undefined && model.min_p !== null && model.min_p !== 0) {
-                body.min_p = model.min_p;
+            if (model.n !== undefined && model.n !== null) {
+                body.n = model.n;
             }
-            if (model.top_a !== undefined && model.top_a !== null && model.top_a !== 0) {
-                body.top_a = model.top_a;
+            if (model.stream_options) {
+                body.stream_options = model.stream_options;
+            }
+            if (model.response_format) {
+                body.response_format = model.response_format;
             }
             if (model.seed !== undefined && model.seed !== null) {
                 body.seed = model.seed;
-            }
-            if (model.logit_bias) {
-                body.logit_bias = model.logit_bias;
             }
             if (model.logprobs !== undefined && model.logprobs !== null) {
                 body.logprobs = model.logprobs;
@@ -1939,11 +2255,8 @@
             if (model.top_logprobs !== undefined && model.top_logprobs !== null) {
                 body.top_logprobs = model.top_logprobs;
             }
-            if (model.response_format) {
-                body.response_format = model.response_format;
-            }
-            if (model.stop && model.stop.length > 0) {
-                body.stop = model.stop;
+            if (model.user) {
+                body.user = model.user;
             }
             if (model.tools) {
                 body.tools = model.tools;
@@ -1976,19 +2289,14 @@
                 body.messages.unshift({ role: 'system', content: systemPrompt });
             }
 
-            const apiKey = resolveApiKey(model);
+            console.log('OpenRouter request:', { endpoint: model.endpoint, body });
 
-            // Validate API key
-            if (!apiKey || apiKey.includes('your-')) {
-                throw new Error('Invalid or missing API key. Please add a valid OpenRouter API key in Settings.');
-            }
+            const apiKey = resolveApiKey(model);
 
             // Build headers
             const headers = {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': window.location.href,
-                'X-Title': 'OpenRouter Multi-Model Chat'
+                'Authorization': `Bearer ${apiKey}`
             };
 
             // Add custom headers (OpenRouter recommends HTTP-Referer and X-Title)
@@ -1997,27 +2305,15 @@
             }
 
             let response;
-            const controller = new AbortController();
-            currentAbortControllers.push(controller);
-
             try {
-                // Add timeout to prevent hanging
-                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
                 response = await fetch(model.endpoint, {
                     method: 'POST',
                     headers: headers,
-                    body: JSON.stringify(body),
-                    signal: controller.signal
+                    body: JSON.stringify(body)
                 });
-
-                clearTimeout(timeoutId);
             } catch (e) {
                 console.error('Fetch error:', e);
-                if (e.name === 'AbortError') {
-                    throw new Error('Request stopped.');
-                }
-                throw new Error(`Network error: ${e.message}. Check your internet connection and make sure the endpoint is correct.`);
+                throw new Error(`Network error: ${e.message}. Check your internet connection and API endpoint.`);
             }
 
             if (!response.ok) {
@@ -2025,29 +2321,10 @@
                 try {
                     errorText = await response.text();
                     console.error('API error response:', errorText);
-
-                    // Try to parse as JSON for better error message
-                    try {
-                        const errorJson = JSON.parse(errorText);
-                        if (errorJson.error && errorJson.error.message) {
-                            errorText = errorJson.error.message;
-                        }
-                    } catch (e) {
-                        // Not JSON, use as-is
-                    }
                 } catch (e) {
                     errorText = 'Could not read error response';
                 }
-
-                if (response.status === 401) {
-                    throw new Error(`Authentication failed. Your API key may be invalid or expired. Status: ${response.status}`);
-                } else if (response.status === 402) {
-                    throw new Error(`Insufficient credits. Please add credits to your OpenRouter account. Status: ${response.status}`);
-                } else if (response.status === 429) {
-                    throw new Error(`Rate limit exceeded. Please wait a moment and try again. Status: ${response.status}`);
-                } else {
-                    throw new Error(`API error ${response.status}: ${errorText}`);
-                }
+                throw new Error(`API error ${response.status}: ${errorText}`);
             }
 
             const reader = response.body.getReader();
@@ -2079,24 +2356,169 @@
 
                             // Handle reasoning/thinking content when streaming
                             if (delta?.reasoning) {
+                                if (!assistantMessage.thinking) {
+                                    assistantMessage.thinking = '';
+                                }
                                 assistantMessage.thinking += delta.reasoning;
+                                assistantMessage.hasThinking = true;
                                 renderConversation();
                             }
+                        } catch (e) {
+                            console.error('Error parsing SSE:', e, 'Line:', line);
+                        }
+                    }
+                }
+            }
+        }
 
-                            // Check for images in the response (for non-streaming or final chunk)
-                            const message = parsed.choices?.[0]?.message;
-                            if (message?.images && message.images.length > 0) {
-                                if (!assistantMessage.images) {
-                                    assistantMessage.images = [];
+        async function streamCustom(model, messages, assistantMessage) {
+            // For custom endpoints, try OpenAI format first
+            await streamOpenAI(model, messages, assistantMessage);
+        }
+
+        async function streamGoogle(model, messages, assistantMessage) {
+            // Convert messages to Google Gemini format
+            const contents = [];
+
+            for (const msg of messages) {
+                const parts = [];
+
+                if (typeof msg.content === 'string') {
+                    parts.push({ text: msg.content });
+                } else if (Array.isArray(msg.content)) {
+                    for (const item of msg.content) {
+                        if (item.type === 'text') {
+                            parts.push({ text: item.text });
+                        } else if (item.type === 'google_image') {
+                            parts.push({
+                                inlineData: {
+                                    mimeType: item.mime_type,
+                                    data: item.data
                                 }
-                                // Add any new images that aren't already present
-                                for (const img of message.images) {
-                                    if (img.image_url?.url && !assistantMessage.images.find(i => i.url === img.image_url.url)) {
-                                        assistantMessage.images.push({
-                                            url: img.image_url.url
-                                        });
-                                    }
-                                }
+                            });
+                        }
+                    }
+                }
+
+                contents.push({
+                    role: msg.role === 'assistant' ? 'model' : 'user',
+                    parts: parts
+                });
+            }
+
+            const body = {
+                contents: contents
+            };
+
+            // Add generation config with optional parameters
+            const generationConfig = {};
+            if (model.temperature !== undefined && model.temperature !== null) {
+                generationConfig.temperature = model.temperature;
+            }
+            if (model.top_p !== undefined && model.top_p !== null) {
+                generationConfig.topP = model.top_p;
+            }
+            if (model.top_k !== undefined && model.top_k !== null) {
+                generationConfig.topK = model.top_k;
+            }
+            if (model.max_output_tokens !== undefined && model.max_output_tokens !== null) {
+                generationConfig.maxOutputTokens = model.max_output_tokens;
+            }
+            if (model.candidate_count !== undefined && model.candidate_count !== null) {
+                generationConfig.candidateCount = model.candidate_count;
+            }
+            if (model.stop_sequences && model.stop_sequences.length > 0) {
+                generationConfig.stopSequences = model.stop_sequences;
+            }
+
+            if (Object.keys(generationConfig).length > 0) {
+                body.generationConfig = generationConfig;
+            }
+
+            // Add safety settings
+            if (model.safety_settings) {
+                body.safetySettings = model.safety_settings;
+            }
+
+            // Add tools
+            if (model.tools) {
+                body.tools = model.tools;
+            }
+
+            // Add tool config
+            if (model.tool_config) {
+                body.toolConfig = model.tool_config;
+            }
+
+            // Add system instruction with identity
+            const systemPrompt = buildSystemPrompt(model);
+            if (systemPrompt) {
+                body.system_instruction = {
+                    parts: [{ text: systemPrompt }]
+                };
+            }
+
+            // Build endpoint with API key
+            const apiKey = resolveApiKey(model);
+            const endpoint = `${model.endpoint}?alt=sse&key=${apiKey}`;
+
+            console.log('Google request:', { endpoint, body });
+
+            // Build headers
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+
+            // Add custom headers
+            if (model.headers) {
+                Object.assign(headers, model.headers);
+            }
+
+            let response;
+            try {
+                response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+            } catch (e) {
+                console.error('Fetch error:', e);
+                throw new Error(`Network error: ${e.message}. Check your internet connection and API endpoint.`);
+            }
+
+            if (!response.ok) {
+                let errorText;
+                try {
+                    errorText = await response.text();
+                    console.error('API error response:', errorText);
+                } catch (e) {
+                    errorText = 'Could not read error response';
+                }
+                throw new Error(`API error ${response.status}: ${errorText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+
+                        try {
+                            const parsed = JSON.parse(data);
+                            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+                            if (text) {
+                                assistantMessage.content += text;
                                 renderConversation();
                             }
                         } catch (e) {
@@ -2156,18 +2578,11 @@
 
                     contentHtml += `<div class="message-content">${rendered}</div>`;
 
-                    // Render received images
-                    if (msg.images && msg.images.length > 0) {
-                        for (const image of msg.images) {
-                            contentHtml += `<div class="file-preview"><img src="${escapeHtml(image.url)}" alt="Generated image" style="max-width: 100%; height: auto; border-radius: 6px; margin-top: 12px;"></div>`;
-                        }
-                    }
-
                     // Add edit and regenerate buttons
                     contentHtml += `
                         <div style="margin-top: 8px; display: flex; gap: 8px;">
-                            <button onclick="editAssistantMessage(${index})" style="font-size: 11px; padding: 4px 8px; background: #4a4a4a; border: none; color: #e0e0e0; border-radius: 4px; cursor: pointer;">Edit</button>
-                            <button onclick="regenerateResponse(${index})" style="font-size: 11px; padding: 4px 8px; background: #4a4a4a; border: none; color: #e0e0e0; border-radius: 4px; cursor: pointer;">Regenerate</button>
+                            <button onclick="editAssistantMessage(${i})" style="font-size: 11px; padding: 4px 8px; background: #4a4a4a; border: none; color: #e0e0e0; border-radius: 4px; cursor: pointer;">Edit</button>
+                            <button onclick="regenerateResponse(${i})" style="font-size: 11px; padding: 4px 8px; background: #4a4a4a; border: none; color: #e0e0e0; border-radius: 4px; cursor: pointer;">Regenerate</button>
                         </div>
                     `;
 
@@ -2342,20 +2757,6 @@
             `;
         }
 
-        function newChat() {
-            if (currentConversation.length > 0) {
-                if (!confirm('Start a new chat? Current conversation will be cleared.')) return;
-            }
-            currentConversation = [];
-            attachedFiles = [];
-            editingMessageIndex = null;
-            saveToStorage();
-            renderConversation();
-            renderHistory();
-            renderAttachedFiles();
-            document.getElementById('message-input').value = '';
-        }
-
         function clearConversation() {
             if (!confirm('Clear current conversation?')) return;
             currentConversation = [];
@@ -2368,12 +2769,18 @@
             clearConversation();
         }
 
-        function exportConversation() {
-            const data = {
-                conversation: currentConversation,
-                timestamp: new Date().toISOString()
-            };
-            downloadJSON(data, `conversation-${Date.now()}.json`);
+        function newChat() {
+            if (currentConversation.length > 0) {
+                if (!confirm('Start a new chat? Current conversation will be cleared.')) return;
+            }
+            currentConversation = [];
+            attachedFiles = [];
+            editingMessageIndex = null;
+            saveToStorage();
+            renderConversation();
+            renderHistory();
+            renderAttachedFiles();
+            document.getElementById('message-input').value = '';
         }
 
         function importHistory(event) {
@@ -2403,6 +2810,14 @@
             };
             reader.readAsText(file);
             event.target.value = '';
+        }
+
+        function exportConversation() {
+            const data = {
+                conversation: currentConversation,
+                timestamp: new Date().toISOString()
+            };
+            downloadJSON(data, `conversation-${Date.now()}.json`);
         }
 
         function exportData() {
