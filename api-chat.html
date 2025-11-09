@@ -699,12 +699,10 @@
             <div class="settings-section">
                 <h3>Browse OpenRouter Models</h3>
                 <p style="font-size: 13px; color: #888; margin-bottom: 12px;">Fetch and search available models from OpenRouter</p>
-                <div style="margin-bottom: 8px;">
-                    <button class="primary" onclick="fetchOpenRouterModels()">Load Models</button>
-                </div>
                 <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                    <button class="primary" onclick="fetchOpenRouterModels()">Load Models</button>
                     <input type="text" id="model-search" placeholder="Search models..." style="flex: 1;" oninput="filterModels()">
-                    <select id="model-sort" onchange="sortAndDisplayModels()">
+                    <select id="model-sort" onchange="sortAndDisplayModels()" style="width: 150px;">
                         <option value="date">Sort by Date</option>
                         <option value="name">Sort by Name</option>
                         <option value="context">Sort by Context</option>
