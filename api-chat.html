@@ -265,6 +265,17 @@
             cursor: not-allowed;
         }
 
+        #stop-btn {
+            background: #ff6b6b;
+            border-color: #ff6b6b;
+            font-weight: 600;
+            display: none;
+        }
+
+        #stop-btn:hover {
+            background: #ff5252;
+        }
+
         .attached-files {
             display: flex;
             gap: 8px;
@@ -505,6 +516,7 @@
                 <textarea id="message-input" placeholder="Type a message... (Click Send button to send)"></textarea>
                 <div class="send-controls">
                     <button id="send-btn">Send</button>
+                    <button id="stop-btn">Stop</button>
                     <button id="auto-btn" style="display: none;">Start Auto</button>
                 </div>
             </div>
@@ -771,6 +783,7 @@
         let autonomousRounds = 0;
         let availableModels = [];
         let filteredModels = [];
+        let currentAbortControllers = [];
 
         // Initialize
         function init() {
@@ -858,6 +871,9 @@
 
             // Send message
             document.getElementById('send-btn').addEventListener('click', sendMessage);
+
+            // Stop generation
+            document.getElementById('stop-btn').addEventListener('click', stopGeneration);
 
             // File upload
             document.getElementById('file-input').addEventListener('change', handleFileUpload);
@@ -1528,6 +1544,33 @@
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
 
+        function showStopButton() {
+            document.getElementById('send-btn').style.display = 'none';
+            document.getElementById('stop-btn').style.display = 'block';
+        }
+
+        function hideStopButton() {
+            document.getElementById('stop-btn').style.display = 'none';
+            document.getElementById('send-btn').style.display = 'block';
+        }
+
+        function stopGeneration() {
+            // Abort all ongoing requests
+            currentAbortControllers.forEach(controller => {
+                try {
+                    controller.abort();
+                } catch (e) {
+                    console.error('Error aborting request:', e);
+                }
+            });
+            currentAbortControllers = [];
+
+            // Reset UI state
+            isStreaming = false;
+            hideStopButton();
+            document.getElementById('send-btn').disabled = false;
+        }
+
         async function sendMessage() {
             if (isStreaming) return;
 
@@ -1568,7 +1611,8 @@
 
             // Start streaming response
             isStreaming = true;
-            document.getElementById('send-btn').disabled = true;
+            currentAbortControllers = [];
+            showStopButton();
             renderConversation();
 
             try {
@@ -1593,7 +1637,8 @@
             }
 
             isStreaming = false;
-            document.getElementById('send-btn').disabled = false;
+            currentAbortControllers = [];
+            hideStopButton();
             renderConversation();
             saveToStorage();
         }
@@ -1948,9 +1993,11 @@
             }
 
             let response;
+            const controller = new AbortController();
+            currentAbortControllers.push(controller);
+
             try {
                 // Add timeout to prevent hanging
-                const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
                 response = await fetch(model.endpoint, {
@@ -1964,7 +2011,7 @@
             } catch (e) {
                 console.error('Fetch error:', e);
                 if (e.name === 'AbortError') {
-                    throw new Error('Request timed out after 30 seconds. Check your internet connection.');
+                    throw new Error('Request stopped.');
                 }
                 throw new Error(`Network error: ${e.message}. Check your internet connection and make sure the endpoint is correct.`);
             }
