@@ -638,6 +638,7 @@
                     <li><code>stop</code>: Array of stop sequences</li>
                     <li><code>tools</code>: Function calling definitions</li>
                     <li><code>tool_choice</code>: Force or disable tool use</li>
+                    <li><code>reasoning</code>: Enable extended thinking/reasoning mode</li>
                     <li><code>provider</code>: Force specific provider (e.g., "Anthropic")</li>
                     <li><code>models</code>: Fallback model array</li>
                     <li><code>route</code>: "fallback" to use model list</li>
@@ -875,6 +876,7 @@
   "stop": null,
   "tools": null,
   "tool_choice": null,
+  "reasoning": null,
   "provider": null,
   "models": null,
   "route": null,
@@ -1731,6 +1733,9 @@
             }
             if (model.tool_choice) {
                 body.tool_choice = model.tool_choice;
+            }
+            if (model.reasoning) {
+                body.reasoning = model.reasoning;
             }
 
             // OpenRouter-specific options
