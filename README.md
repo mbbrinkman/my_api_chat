@@ -22,8 +22,9 @@ https://mbbrinkman.github.io/my_api_chat/api-chat.html
 - Image generation support (receive images from image generation models)
 - Model browser (fetch, search, and sort all available OpenRouter models)
 - Configurable system prompts (per-model or global override)
-- Local browser storage for conversations, models, and API keys
+- IndexedDB storage for unlimited conversations with images (50 MB to several GB)
 - Export/import functionality for data backup
+- Mobile-friendly with reliable image support on iPhone/iPad
 
 ### Model Configuration
 - Full access to OpenRouter API parameters including temperature, top_p, max_tokens, frequency/presence penalties, and provider-specific options
@@ -63,17 +64,17 @@ Example model IDs:
 
 ## Technical Details
 
-- Single HTML file application (~2000 lines)
+- Single HTML file application (~2800 lines)
 - No build process or dependencies required
 - Client-side JavaScript only
 - Uses KaTeX (via CDN) for LaTeX math rendering
 - Custom markdown rendering for bold, italic, code blocks
-- Browser localStorage for data persistence
-- Supports all modern browsers including mobile
+- IndexedDB for data persistence (50 MB to several GB storage)
+- Supports all modern browsers including mobile (iPhone/iPad tested)
 
 ## Privacy
 
-All data is stored locally in your browser. No information is sent to any server except OpenRouter API calls for model responses. API keys are stored in browser localStorage.
+All data is stored locally in your browser using IndexedDB. No information is sent to any server except OpenRouter API calls for model responses. API keys, conversations, and all settings remain private on your device.
 
 ## Image Generation
 
