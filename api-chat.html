@@ -903,8 +903,8 @@
         let conversationHistory = []; // Array to store saved conversations
 
         // Initialize
-        function init() {
-            loadFromStorage();
+        async function init() {
+            await loadFromStorage();
             setupEventListeners();
             updateModelSelect();
             updateModelsList();
@@ -914,83 +914,92 @@
             renderHistory();
         }
 
-        function loadFromStorage() {
-            const storedModels = localStorage.getItem('models');
-            if (storedModels) {
-                try {
-                    models = JSON.parse(storedModels);
-                } catch (e) {
-                    console.error('Error loading models:', e);
-                }
-            }
+        // IndexedDB wrapper for storage
+        let db = null;
 
-            const storedApiKeys = localStorage.getItem('apiKeys');
-            if (storedApiKeys) {
-                try {
-                    apiKeys = JSON.parse(storedApiKeys);
-                } catch (e) {
-                    console.error('Error loading API keys:', e);
-                }
-            }
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('ApiChatDB', 1);
 
-            const storedPrompts = localStorage.getItem('systemPrompts');
-            if (storedPrompts) {
-                try {
-                    systemPrompts = JSON.parse(storedPrompts);
-                } catch (e) {
-                    console.error('Error loading prompts:', e);
-                }
-            }
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    db = request.result;
+                    resolve(db);
+                };
 
-            activePromptId = localStorage.getItem('activePromptId');
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('settings')) {
+                        db.createObjectStore('settings');
+                    }
+                };
+            });
+        }
 
-            const storedConversation = localStorage.getItem('currentConversation');
-            if (storedConversation) {
-                try {
-                    currentConversation = JSON.parse(storedConversation);
-                } catch (e) {
-                    console.error('Error loading conversation:', e);
-                }
-            }
+        async function saveData(key, value) {
+            if (!db) await initDB();
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['settings'], 'readwrite');
+                const store = transaction.objectStore('settings');
+                const request = store.put(value, key);
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
 
-            const storedSelectedModels = localStorage.getItem('selectedModelIndices');
-            if (storedSelectedModels) {
-                try {
-                    selectedModelIndices = JSON.parse(storedSelectedModels);
-                } catch (e) {
-                    console.error('Error loading selected models:', e);
-                }
-            }
+        async function loadData(key, defaultValue = null) {
+            if (!db) await initDB();
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['settings'], 'readonly');
+                const store = transaction.objectStore('settings');
+                const request = store.get(key);
+                request.onsuccess = () => {
+                    resolve(request.result !== undefined ? request.result : defaultValue);
+                };
+                request.onerror = () => reject(request.error);
+            });
+        }
 
-            multiModelMode = localStorage.getItem('multiModelMode') || 'parallel';
-            rotationIndex = parseInt(localStorage.getItem('rotationIndex') || '0');
-            iterationCount = parseInt(localStorage.getItem('iterationCount') || '1');
-            messageHistoryLimit = parseInt(localStorage.getItem('messageHistoryLimit') || '0');
-            includeFilesInHistory = localStorage.getItem('includeFilesInHistory') === 'true';
+        async function loadFromStorage() {
+            try {
+                await initDB();
 
-            const storedHistory = localStorage.getItem('conversationHistory');
-            if (storedHistory) {
-                try {
-                    conversationHistory = JSON.parse(storedHistory);
-                } catch (e) {
-                    console.error('Error loading conversation history:', e);
-                }
+                models = await loadData('models', []);
+                apiKeys = await loadData('apiKeys', []);
+                systemPrompts = await loadData('systemPrompts', []);
+                activePromptId = await loadData('activePromptId', null);
+                currentConversation = await loadData('currentConversation', []);
+                selectedModelIndices = await loadData('selectedModelIndices', []);
+                multiModelMode = await loadData('multiModelMode', 'parallel');
+                rotationIndex = await loadData('rotationIndex', 0);
+                iterationCount = await loadData('iterationCount', 1);
+                messageHistoryLimit = await loadData('messageHistoryLimit', 0);
+                includeFilesInHistory = await loadData('includeFilesInHistory', false);
+                conversationHistory = await loadData('conversationHistory', []);
+            } catch (e) {
+                console.error('Error loading from IndexedDB:', e);
             }
         }
 
-        function saveToStorage() {
-            localStorage.setItem('models', JSON.stringify(models));
-            localStorage.setItem('apiKeys', JSON.stringify(apiKeys));
-            localStorage.setItem('systemPrompts', JSON.stringify(systemPrompts));
-            localStorage.setItem('activePromptId', activePromptId || '');
-            localStorage.setItem('currentConversation', JSON.stringify(currentConversation));
-            localStorage.setItem('selectedModelIndices', JSON.stringify(selectedModelIndices));
-            localStorage.setItem('multiModelMode', multiModelMode);
-            localStorage.setItem('rotationIndex', rotationIndex.toString());
-            localStorage.setItem('iterationCount', iterationCount.toString());
-            localStorage.setItem('messageHistoryLimit', messageHistoryLimit.toString());
-            localStorage.setItem('includeFilesInHistory', includeFilesInHistory.toString());
-            localStorage.setItem('conversationHistory', JSON.stringify(conversationHistory));
+        async function saveToStorage() {
+            try {
+                await Promise.all([
+                    saveData('models', models),
+                    saveData('apiKeys', apiKeys),
+                    saveData('systemPrompts', systemPrompts),
+                    saveData('activePromptId', activePromptId),
+                    saveData('currentConversation', currentConversation),
+                    saveData('selectedModelIndices', selectedModelIndices),
+                    saveData('multiModelMode', multiModelMode),
+                    saveData('rotationIndex', rotationIndex),
+                    saveData('iterationCount', iterationCount),
+                    saveData('messageHistoryLimit', messageHistoryLimit),
+                    saveData('includeFilesInHistory', includeFilesInHistory),
+                    saveData('conversationHistory', conversationHistory)
+                ]);
+            } catch (e) {
+                console.error('Error saving to IndexedDB:', e);
+            }
         }
 
         function setupEventListeners() {
@@ -2084,14 +2093,26 @@
                 conversationToUse = conversationToUse.slice(-messageHistoryLimit);
             }
 
+            // Find the most recent user message (to always include its files)
+            let mostRecentUserMsg = null;
+            for (let i = conversationToUse.length - 1; i >= 0; i--) {
+                if (conversationToUse[i].role === 'user' && conversationToUse[i] !== excludeMessage) {
+                    mostRecentUserMsg = conversationToUse[i];
+                    break;
+                }
+            }
+
             for (const msg of conversationToUse) {
                 if (msg === excludeMessage) continue; // Skip the message we're currently generating
 
                 if (msg.role === 'user') {
                     let content;
 
-                    // Build content based on whether we have files and includeFilesInHistory setting
-                    if (includeFilesInHistory && msg.files && msg.files.length > 0) {
+                    // Always include files from the most recent user message, or if includeFilesInHistory is enabled
+                    const shouldIncludeFiles = msg.files && msg.files.length > 0 &&
+                                               (msg === mostRecentUserMsg || includeFilesInHistory);
+
+                    if (shouldIncludeFiles) {
                         // Has files and should include them - use array format (OpenAI-compatible)
                         content = [];
 
@@ -2779,7 +2800,7 @@
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
 
@@ -2789,8 +2810,8 @@
                     if (data.activePromptId) activePromptId = data.activePromptId;
                     if (data.currentConversation) currentConversation = data.currentConversation;
 
-                    saveToStorage();
-                    init();
+                    await saveToStorage();
+                    await init();
                     alert('Data imported successfully!');
                 } catch (e) {
                     alert('Error importing data: ' + e.message);
