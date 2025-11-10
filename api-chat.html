@@ -715,7 +715,7 @@
                     <li><strong>Parallel:</strong> All models respond N times in parallel (e.g., 2 iterations = 2 rounds of all models responding simultaneously)</li>
                     <li><strong>Serial:</strong> The complete sequence of models responds N times (e.g., 3 iterations with 2 models = model1, model2, model1, model2, model1, model2)</li>
                     <li><strong>Rotating:</strong> The rotated sequence repeats N times with order continuing to rotate each iteration</li>
-                    <li><strong>Autonomous:</strong> Models converse for exactly N rounds before stopping automatically</li>
+                    <li><strong>Autonomous:</strong> Each model responds exactly N times (e.g., 10 iterations with 3 models = 30 total responses, 10 per model)</li>
                 </ul>
 
                 <h3>Model Identity System</h3>
@@ -785,6 +785,15 @@
                     <li><code>transforms</code>: ["middle-out"] for content filtering</li>
                 </ul>
 
+                <h3>Data Storage</h3>
+                <p>All data is stored locally in your browser using IndexedDB:</p>
+                <ul>
+                    <li><strong>Storage Capacity:</strong> 50 MB to several GB (varies by browser), much larger than typical localStorage limits</li>
+                    <li><strong>Images Supported:</strong> Store conversations with multiple images without quota issues</li>
+                    <li><strong>Mobile Friendly:</strong> Works reliably on mobile devices including iPhone/iPad</li>
+                    <li><strong>Privacy:</strong> All data stays on your device, nothing sent to servers except OpenRouter API calls</li>
+                </ul>
+
                 <h3>Data Management</h3>
                 <h4>Export Data</h4>
                 <p>Settings → Export Data creates a JSON file with all your models, API keys, prompts, and current conversation.</p>
@@ -806,9 +815,10 @@
 
                 <h3>Troubleshooting</h3>
                 <p><strong>Messages not sending:</strong> Check browser console (F12) for errors, verify API key is correct</p>
-                <p><strong>Images not working:</strong> Ensure you're using a vision-capable model (Claude 3+, GPT-4V, Gemini Pro Vision)</p>
+                <p><strong>Images not working:</strong> Ensure you're using a vision-capable model (Claude 3+, GPT-4V, Gemini Pro Vision). Images are always sent with the most recent message.</p>
                 <p><strong>Mode not updating:</strong> Hard refresh (Ctrl+Shift+R or Cmd+Shift+R)</p>
                 <p><strong>Model deleted:</strong> Can't regenerate old messages from deleted models</p>
+                <p><strong>Multiple images on mobile:</strong> IndexedDB storage allows unlimited images even on mobile devices like iPhone</p>
 
                 <h3>Source Code & License</h3>
                 <p>This application is open source and available on GitHub:</p>
