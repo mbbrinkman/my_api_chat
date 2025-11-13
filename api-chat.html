@@ -2099,7 +2099,7 @@
             // Add model identity information if enabled and in multi-model mode
             if (enableModelIdentity && selectedModelIndices.length > 1 && model.name) {
                 const sanitizedName = sanitizeModelName(model.name);
-                systemPrompt = `You are ${sanitizedName}. This is your identity in this conversation.\n\n`;
+                systemPrompt = `You are ${sanitizedName}. This is your identity in this conversation. You must always respond as ${sanitizedName}, not as any other participant.\n\n`;
 
                 // Build list of who they're conversing with based on mode
                 const conversants = [];
@@ -2125,7 +2125,7 @@
                 }
 
                 if (conversants.length > 0) {
-                    systemPrompt += `You are conversing with: ${conversants.join(', ')}.\n\n`;
+                    systemPrompt += `You are conversing with: ${conversants.join(', ')}. When you see "X said: ...", that is a message from X. You should respond as ${sanitizedName}, not as any other participant.\n\n`;
                 }
             }
 
@@ -2222,6 +2222,11 @@
                     });
                     lastRole = 'user';
                 } else if (msg.role === 'assistant') {
+                    // Skip messages with empty content (could be streaming failures)
+                    if (!msg.content || msg.content.trim() === '') {
+                        continue;
+                    }
+
                     // If last message was also assistant, convert it to user to avoid consecutive assistant messages
                     const role = lastRole === 'assistant' ? 'user' : 'assistant';
 
@@ -2229,7 +2234,7 @@
                     let content = msg.content;
                     if (role === 'user' && msg.modelName) {
                         const sanitizedModelName = sanitizeModelName(msg.modelName);
-                        content = `[${sanitizedModelName}]: ${msg.content}`;
+                        content = `${sanitizedModelName} said: ${msg.content}`;
                     }
 
                     messages.push({
