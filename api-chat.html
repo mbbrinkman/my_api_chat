@@ -2667,7 +2667,17 @@
             // Escape HTML first
             let escaped = escapeHtml(text);
 
-            // Render block LaTeX first ($$ ... $$) - must come before inline
+            // Render block LaTeX first - process all block formats before inline
+            // Format: \[ ... \] (standard LaTeX display math)
+            escaped = escaped.replace(/\\\[([\s\S]+?)\\\]/g, (match, latex) => {
+                try {
+                    return katex.renderToString(latex.trim(), { throwOnError: false, displayMode: true });
+                } catch (e) {
+                    return match;
+                }
+            });
+
+            // Format: $$ ... $$ (alternative display math)
             escaped = escaped.replace(/\$\$([\s\S]+?)\$\$/g, (match, latex) => {
                 try {
                     return katex.renderToString(latex.trim(), { throwOnError: false, displayMode: true });
@@ -2676,7 +2686,17 @@
                 }
             });
 
-            // Render inline LaTeX ($ ... $)
+            // Render inline LaTeX - process all inline formats
+            // Format: \( ... \) (standard LaTeX inline math)
+            escaped = escaped.replace(/\\\(([\s\S]+?)\\\)/g, (match, latex) => {
+                try {
+                    return katex.renderToString(latex.trim(), { throwOnError: false, displayMode: false });
+                } catch (e) {
+                    return match;
+                }
+            });
+
+            // Format: $ ... $ (alternative inline math)
             escaped = escaped.replace(/\$([^\$\n]+)\$/g, (match, latex) => {
                 try {
                     return katex.renderToString(latex, { throwOnError: false, displayMode: false });
