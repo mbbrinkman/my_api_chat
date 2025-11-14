@@ -1474,17 +1474,38 @@
                     }
                 } catch (error) {
                     console.error('Autonomous error:', error);
+
+                    // Remove any empty assistant messages that were added before the error
+                    currentConversation = currentConversation.filter(msg => {
+                        if (msg.role === 'assistant') {
+                            return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
+                        }
+                        return true;
+                    });
+
                     isAutonomousRunning = false;
                     autoBtn.textContent = 'Start Auto';
                     autoBtn.style.background = '#4a9eff';
+                    saveToStorage();
+                    renderConversation();
                     alert('Error in autonomous mode: ' + error.message);
                 }
             }
+
+            // Final cleanup: Remove any empty assistant messages
+            currentConversation = currentConversation.filter(msg => {
+                if (msg.role === 'assistant') {
+                    return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
+                }
+                return true;
+            });
 
             // Reset button when done (either completed iterations or stopped manually)
             isAutonomousRunning = false;
             autoBtn.textContent = 'Start Auto';
             autoBtn.style.background = '#4a9eff';
+            saveToStorage();
+            renderConversation();
         }
 
         function updatePromptsList() {
@@ -1995,6 +2016,15 @@
             } catch (error) {
                 console.error('Error:', error);
 
+                // Remove any empty assistant messages that were added before the error
+                currentConversation = currentConversation.filter(msg => {
+                    if (msg.role === 'assistant') {
+                        // Keep messages that have content, thinking, or images
+                        return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
+                    }
+                    return true; // Keep all user messages
+                });
+
                 // Add user-friendly error message
                 const errorMessage = {
                     role: 'assistant',
@@ -2004,6 +2034,14 @@
                 currentConversation.push(errorMessage);
                 renderConversation();
             }
+
+            // Final cleanup: Remove any empty assistant messages that may have slipped through
+            currentConversation = currentConversation.filter(msg => {
+                if (msg.role === 'assistant') {
+                    return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
+                }
+                return true;
+            });
 
             isStreaming = false;
             stopBackgroundAudio(); // Stop silent audio when done
@@ -2497,6 +2535,8 @@
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
+            let finishReason = null;
+            let hasReceivedContent = false;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -2522,6 +2562,7 @@
                                     for (const block of delta.content) {
                                         if (block.type === 'text' && block.text) {
                                             assistantMessage.content += block.text;
+                                            hasReceivedContent = true;
                                         } else if (block.type === 'image_url' && block.image_url?.url) {
                                             if (!assistantMessage.images) {
                                                 assistantMessage.images = [];
@@ -2538,8 +2579,14 @@
                                 } else if (typeof delta.content === 'string') {
                                     // String content (most common case)
                                     assistantMessage.content += delta.content;
+                                    hasReceivedContent = true;
                                     renderConversation();
                                 }
+                            }
+
+                            // Track finish reason
+                            if (parsed.choices?.[0]?.finish_reason) {
+                                finishReason = parsed.choices[0].finish_reason;
                             }
 
                             // Handle reasoning/thinking content when streaming
@@ -2587,6 +2634,27 @@
                             console.error('Error parsing SSE:', e, 'Line:', line);
                         }
                     }
+                }
+            }
+
+            // Validate that we received content
+            if (!hasReceivedContent && !assistantMessage.content && !assistantMessage.thinking) {
+                // Log diagnostic information
+                console.warn('Model completed streaming with no content', {
+                    model: model.name,
+                    finishReason: finishReason,
+                    hasImages: assistantMessage.images?.length > 0
+                });
+
+                // Throw error with helpful message based on finish reason
+                if (finishReason === 'content_filter') {
+                    throw new Error(`${model.name} declined to respond due to content filter. Try rephrasing your message.`);
+                } else if (finishReason === 'length') {
+                    throw new Error(`${model.name} hit token limit before responding. Try reducing message history or increasing max_tokens.`);
+                } else if (finishReason) {
+                    throw new Error(`${model.name} stopped with reason: ${finishReason} (no content generated)`);
+                } else {
+                    throw new Error(`${model.name} completed streaming but provided no response. This may be a model issue or API error.`);
                 }
             }
         }
