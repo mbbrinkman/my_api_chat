@@ -678,7 +678,7 @@
                     <li><strong>Add OpenRouter API Key:</strong> Go to Settings → Add API Key section (get your key from openrouter.ai)</li>
                     <li><strong>Browse Models:</strong> Go to Settings → Browse OpenRouter Models → Click "Load Models" to see all available models</li>
                     <li><strong>Add Models:</strong> Click any model from the browser to auto-populate the Add New Model form, or manually add model configuration</li>
-                    <li><strong>Select Models:</strong> Click "Select Models" button, check the models you want to use</li>
+                    <li><strong>Select Models:</strong> Click "Select Models" button, check the models you want to use. Use the number input to select multiple instances of the same model (1-10).</li>
                     <li><strong>Choose Mode & Iterations:</strong> In model picker, select Parallel/Serial/Rotating/Autonomous and set how many iterations (1-100)</li>
                     <li><strong>Chat:</strong> Type your message and click Send!</li>
                 </ol>
@@ -742,6 +742,7 @@
                     <li><strong>Serial/Rotating:</strong> "You are [Model Name]. You are conversing with: Human, [Other Models]."</li>
                     <li><strong>Autonomous:</strong> "You are [Model Name]. You are conversing with: [Other Models]." (no Human)</li>
                 </ul>
+                <p><strong>Multiple Instances:</strong> You can select multiple instances of the same model by using the number input next to each model in the picker. The model name is simply a chat identifier to distinguish between different instances - multiple instances of the same underlying model can participate with different names (e.g., "GPT-4 Debater 1" and "GPT-4 Debater 2").</p>
 
                 <h3>About OpenRouter</h3>
                 <p>OpenRouter provides unified access to 100+ AI models from multiple providers through a single API:</p>
@@ -1307,18 +1308,32 @@
                 checkboxesContainer.innerHTML = '<p style="color: #888;">No models configured. Add models in Settings.</p>';
             } else {
                 models.forEach((model, index) => {
+                    const wrapper = document.createElement('div');
+                    wrapper.style.cssText = 'display: flex; align-items: center; gap: 8px; margin-bottom: 8px;';
+
                     const label = document.createElement('label');
+                    label.style.cssText = 'flex: 1; display: flex; align-items: center; cursor: pointer;';
+
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
                     checkbox.value = index;
-                    checkbox.checked = selectedModelIndices.includes(index);
+
+                    // Count how many times this model is selected
+                    const instanceCount = selectedModelIndices.filter(i => i === index).length;
+                    checkbox.checked = instanceCount > 0;
+
                     checkbox.addEventListener('change', (e) => {
+                        const countInput = wrapper.querySelector('input[type="number"]');
                         if (e.target.checked) {
-                            if (!selectedModelIndices.includes(index)) {
+                            // Add instances based on count input
+                            const count = parseInt(countInput.value) || 1;
+                            for (let i = 0; i < count; i++) {
                                 selectedModelIndices.push(index);
                             }
                         } else {
+                            // Remove all instances of this model
                             selectedModelIndices = selectedModelIndices.filter(i => i !== index);
+                            countInput.value = 1;
                         }
                         saveToStorage();
                         updateModelPickerButton();
@@ -1357,7 +1372,38 @@
                     }
 
                     label.appendChild(modelInfo);
-                    checkboxesContainer.appendChild(label);
+
+                    // Add instance count input
+                    const countInput = document.createElement('input');
+                    countInput.type = 'number';
+                    countInput.min = '1';
+                    countInput.max = '10';
+                    countInput.value = instanceCount > 0 ? instanceCount : 1;
+                    countInput.style.cssText = 'width: 50px; padding: 4px; background: #3a3a3a; border: 1px solid #4a4a4a; color: #e0e0e0; border-radius: 4px; text-align: center;';
+                    countInput.title = 'Number of instances';
+
+                    countInput.addEventListener('change', (e) => {
+                        if (!checkbox.checked) return;
+
+                        const newCount = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
+                        e.target.value = newCount;
+
+                        // Remove all existing instances of this model
+                        selectedModelIndices = selectedModelIndices.filter(i => i !== index);
+
+                        // Add the new count of instances
+                        for (let i = 0; i < newCount; i++) {
+                            selectedModelIndices.push(index);
+                        }
+
+                        saveToStorage();
+                        updateModelPickerButton();
+                    });
+
+                    // Assemble the wrapper
+                    wrapper.appendChild(label);
+                    wrapper.appendChild(countInput);
+                    checkboxesContainer.appendChild(wrapper);
                 });
             }
 
@@ -2224,7 +2270,7 @@
             // Add model identity information if enabled and in multi-model mode
             if (enableModelIdentity && selectedModelIndices.length > 1 && model.name) {
                 const sanitizedName = sanitizeModelName(model.name);
-                systemPrompt = `You are ${sanitizedName}. This is your identity in this conversation. You must always respond as ${sanitizedName}, not as any other participant.\n\n`;
+                systemPrompt = `You are ${sanitizedName}. This is your chat identifier in this conversation - it's simply a name to distinguish you from other participants (there may be multiple instances of the same underlying model with different chat names). You must always respond as ${sanitizedName}, not as any other participant.\n\n`;
 
                 // Build list of who they're conversing with based on mode
                 const conversants = [];
@@ -2250,7 +2296,7 @@
                 }
 
                 if (conversants.length > 0) {
-                    systemPrompt += `You are conversing with: ${conversants.join(', ')}. When you see "X said: ...", that is a message from X. You should respond as ${sanitizedName}, not as any other participant.\n\n`;
+                    systemPrompt += `You are conversing with: ${conversants.join(', ')}. When you see "X said: ...", that is a message from X. You should respond as ${sanitizedName}, not as any other participant. Note that some chat participants may be different instances of the same underlying model as you, distinguished only by their chat identifier.\n\n`;
                 }
             }
 
