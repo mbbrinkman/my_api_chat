@@ -2440,7 +2440,8 @@
                     let content = msg.content;
                     if (role === 'user' && msg.modelName) {
                         const sanitizedModelName = sanitizeModelName(msg.modelName);
-                        content = `${sanitizedModelName} said: ${msg.content}`;
+                        // Trim content to prevent cascading newlines/whitespace
+                        content = `${sanitizedModelName} said: ${msg.content.trim()}`;
                     }
 
                     messages.push({
