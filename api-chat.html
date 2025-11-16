@@ -2397,7 +2397,8 @@
                         content = [];
 
                         if (msg.content) {
-                            content.push({ type: 'text', text: msg.content });
+                            // Trim leading/trailing whitespace from user messages too
+                            content.push({ type: 'text', text: msg.content.trim() });
                         }
 
                         for (const file of msg.files) {
@@ -2419,7 +2420,8 @@
                         }
                     } else {
                         // No files or should not include files - use simple string format
-                        content = msg.content || '';
+                        // Trim leading/trailing whitespace from user messages too
+                        content = (msg.content || '').trim();
                     }
 
                     messages.push({
@@ -2436,12 +2438,13 @@
                     // If last message was also assistant, convert it to user to avoid consecutive assistant messages
                     const role = lastRole === 'assistant' ? 'user' : 'assistant';
 
+                    // Aggressively trim all leading/trailing whitespace and newlines before sending to API
+                    let content = msg.content.trim();
+
                     // Add model name prefix if converting to user and model has a name
-                    let content = msg.content;
                     if (role === 'user' && msg.modelName) {
                         const sanitizedModelName = sanitizeModelName(msg.modelName);
-                        // Trim content to prevent cascading newlines/whitespace
-                        content = `${sanitizedModelName} said: ${msg.content.trim()}`;
+                        content = `${sanitizedModelName} said: ${content}`;
                     }
 
                     messages.push({
