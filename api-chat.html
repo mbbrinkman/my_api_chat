@@ -2331,7 +2331,11 @@
                 }
 
                 if (conversants.length > 0) {
-                    systemPrompt += `You are conversing with: ${conversants.join(', ')}. When you see "X said: ...", that is a message from X. You should respond as ${sanitizedName}, not as any other participant. Note that some chat participants may be different instances of the same underlying model as you, distinguished only by their chat identifier.\n\n`;
+                    systemPrompt += `You are conversing with: ${conversants.join(', ')}.
+
+IMPORTANT: In this multi-participant conversation, user messages may come from other AI models, not just from Human. When you see a message that starts with "X said: ...", that message is FROM X - it's their actual message content, not the human quoting them. You should treat "Model A said: hello" the same as if Model A directly sent you "hello". This is a real conversation between multiple participants (${conversants.join(', ')}), and you should engage naturally.
+
+You should respond directly with your message content - do NOT add extra formatting, labels, prefixes, or leading newlines before your response. Simply start your response immediately with your first word. You should respond as ${sanitizedName}, not as any other participant. Note that some chat participants may be different instances of the same underlying model as you, distinguished only by their chat identifier.\n\n`;
                 }
             }
 
@@ -2543,6 +2547,12 @@
                 body.messages.unshift({ role: 'system', content: systemPrompt });
             }
 
+            // Debug: Log the actual messages being sent (remove in production)
+            console.log('API Request for', model.name, ':', {
+                messages: body.messages,
+                model: body.model
+            });
+
             const apiKey = resolveApiKey(model);
 
             // Validate API key
@@ -2640,6 +2650,25 @@
 
                         try {
                             const parsed = JSON.parse(data);
+
+                            // Check for OpenRouter error in response body (HTTP 200 with error field)
+                            // OpenRouter returns rate limits and other errors as HTTP 200 with error object
+                            if (parsed.error) {
+                                const errorMsg = parsed.error.message || 'Unknown error from API';
+                                const errorCode = parsed.error.code;
+
+                                // Throw specific error based on code
+                                if (errorCode === 429) {
+                                    throw new Error(`Rate limit exceeded: ${errorMsg}. Try waiting or using a different model.`);
+                                } else if (errorCode === 402) {
+                                    throw new Error(`Payment required: ${errorMsg}. Check your OpenRouter credit balance.`);
+                                } else if (errorCode === 400) {
+                                    throw new Error(`Bad request: ${errorMsg}`);
+                                } else {
+                                    throw new Error(`API error (${errorCode || 'unknown'}): ${errorMsg}`);
+                                }
+                            }
+
                             const delta = parsed.choices?.[0]?.delta;
 
                             // Handle content (can be string or array of content blocks)
