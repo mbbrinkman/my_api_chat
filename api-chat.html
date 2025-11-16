@@ -2331,7 +2331,7 @@
                 }
 
                 if (conversants.length > 0) {
-                    systemPrompt += `You are conversing with: ${conversants.join(', ')}. When you see "X said: ...", that is a message from X. You should respond as ${sanitizedName}, not as any other participant. Note that some chat participants may be different instances of the same underlying model as you, distinguished only by their chat identifier.\n\n`;
+                    systemPrompt += `You are conversing with: ${conversants.join(', ')}. When you see "X said: ...", that is a message from X. You should respond directly with your message content - do NOT add extra formatting, labels, prefixes, or leading newlines before your response. Simply start your response immediately with your first word. You should respond as ${sanitizedName}, not as any other participant. Note that some chat participants may be different instances of the same underlying model as you, distinguished only by their chat identifier.\n\n`;
                 }
             }
 
@@ -2542,6 +2542,12 @@
             if (systemPrompt) {
                 body.messages.unshift({ role: 'system', content: systemPrompt });
             }
+
+            // Debug: Log the actual messages being sent (remove in production)
+            console.log('API Request for', model.name, ':', {
+                messages: body.messages,
+                model: body.model
+            });
 
             const apiKey = resolveApiKey(model);
 
