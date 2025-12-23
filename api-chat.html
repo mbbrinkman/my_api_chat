@@ -3476,20 +3476,25 @@
             const container = document.getElementById('chat-messages');
             const wasNearBottom = isNearBottom(container);
 
-            // During streaming, try to update only the last message for better performance
+            // During streaming, try to update only assistant messages for better performance
             if (isStreaming && container.children.length === currentConversation.length && currentConversation.length > 0) {
-                const lastIndex = currentConversation.length - 1;
-                const lastMsg = currentConversation[lastIndex];
-                if (lastMsg.role === 'assistant') {
-                    const lastElement = container.children[lastIndex];
-                    if (lastElement && lastElement.classList.contains('assistant')) {
-                        // Update only the last message content
-                        updateAssistantMessage(lastElement, lastMsg, lastIndex);
-                        if (wasNearBottom) {
-                            container.scrollTop = container.scrollHeight;
+                let updatedAny = false;
+                // Update all assistant messages (handles parallel streaming)
+                for (let i = 0; i < currentConversation.length; i++) {
+                    const msg = currentConversation[i];
+                    if (msg.role === 'assistant') {
+                        const element = container.children[i];
+                        if (element && element.classList.contains('assistant')) {
+                            updateAssistantMessage(element, msg, i);
+                            updatedAny = true;
                         }
-                        return;
                     }
+                }
+                if (updatedAny) {
+                    if (wasNearBottom) {
+                        container.scrollTop = container.scrollHeight;
+                    }
+                    return;
                 }
             }
 
