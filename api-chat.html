@@ -1536,7 +1536,8 @@
             if (selectedModelIndices.length === 0) {
                 btn.textContent = 'Select Models';
             } else if (selectedModelIndices.length === 1) {
-                btn.textContent = models[selectedModelIndices[0]]?.name || 'Select Models';
+                const name = models[selectedModelIndices[0]]?.name;
+                btn.textContent = name ? stripCompanyPrefix(name) : 'Select Models';
             } else {
                 btn.textContent = `${selectedModelIndices.length} Models (${multiModelMode})`;
             }
@@ -1609,7 +1610,7 @@
 
                     const modelName = document.createElement('div');
                     modelName.className = 'model-name';
-                    modelName.textContent = model.name;
+                    modelName.textContent = stripCompanyPrefix(model.name);
                     modelInfo.appendChild(modelName);
 
                     // Show active system prompt (global overrides per-model)
@@ -2186,12 +2187,13 @@
                 const contextLength = model.context_length ? `${(model.context_length / 1000).toFixed(0)}K` : 'N/A';
                 const created = model.created ? new Date(model.created * 1000).toLocaleDateString() : 'Unknown';
 
+                const displayName = stripCompanyPrefix(model.name || model.id);
                 html += `
                     <div style="background: #2a2a2a; padding: 12px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; border: 2px solid transparent;"
-                         onclick="selectModel('${escapeHtml(model.id)}', '${escapeHtml(model.name || model.id)}')"
+                         onclick="selectModel('${escapeHtml(model.id)}', '${escapeHtml(displayName)}')"
                          onmouseover="this.style.borderColor='#4a9eff'"
                          onmouseout="this.style.borderColor='transparent'">
-                        <div style="font-weight: 600; color: #e0e0e0; margin-bottom: 4px;">${escapeHtml(model.name || model.id)}</div>
+                        <div style="font-weight: 600; color: #e0e0e0; margin-bottom: 4px;">${escapeHtml(displayName)}</div>
                         <div style="font-size: 12px; color: #888; font-family: monospace; margin-bottom: 6px;">${escapeHtml(model.id)}</div>
                         <div style="font-size: 12px; color: #aaa; margin-bottom: 6px;">${escapeHtml(model.description || 'No description')}</div>
                         <div style="font-size: 11px; color: #666; display: flex; gap: 12px;">
@@ -2733,14 +2735,25 @@
             return model.api_key;
         }
 
+        // Strip company prefix from model name (e.g., "Anthropic: Claude 3 Opus" -> "Claude 3 Opus")
+        function stripCompanyPrefix(name) {
+            if (!name || typeof name !== 'string') return name;
+            // Match pattern: "Company Name: Model Name" or "Company: Model Name"
+            const match = name.match(/^[A-Za-z0-9\s]+:\s*(.+)$/);
+            return match ? match[1] : name;
+        }
+
         // Sanitize model names to prevent prompt injection
         function sanitizeModelName(name) {
             if (!name || typeof name !== 'string') {
                 return 'Unknown Model';
             }
 
+            // Strip company prefix first
+            let sanitized = stripCompanyPrefix(name);
+
             // Remove control characters and normalize whitespace
-            let sanitized = name
+            sanitized = sanitized
                 .replace(/[\r\n\t]+/g, ' ')  // Replace newlines and tabs with spaces
                 .replace(/\s+/g, ' ')         // Collapse multiple spaces
                 .trim();
@@ -2798,48 +2811,30 @@
 
             if (needsIdentity) {
                 const sanitizedName = sanitizeModelName(model.name);
-                systemPrompt = `You are ${sanitizedName}. This is your identity in this conversation. You must ONLY respond as ${sanitizedName} - never simulate, roleplay, or speak as any other participant.
+                const now = new Date().toLocaleString();
 
-CRITICAL: Do NOT mimic, impersonate, or generate responses for other participants. When you see messages from other models in the history, those are THEIR responses - do not continue their patterns, adopt their style, or pretend to be them. Your response should reflect YOUR unique perspective and capabilities, not theirs.
-
-`;
-
-                // Build list of all participants - include models from history, not just currently selected
-                const allParticipants = [];
-
+                // Build list of other participants
+                const otherParticipants = [];
                 if (multiModelMode === 'parallel') {
-                    // In parallel mode, each model converses with the user
-                    allParticipants.push(userIdentifier);
+                    otherParticipants.push(userIdentifier);
                 } else if (multiModelMode === 'autonomous') {
-                    // In autonomous mode, only AI participants (no user)
-                    // Include all models from conversation history
                     const otherModels = getModelsInConversation()
                         .filter(name => name !== model.name)
                         .map(name => sanitizeModelName(name));
-                    allParticipants.push(...otherModels);
+                    otherParticipants.push(...otherModels);
                 } else {
-                    // In serial/rotating modes, include all participants equally
-                    allParticipants.push(userIdentifier);
-                    // Include all models from conversation history
+                    otherParticipants.push(userIdentifier);
                     const otherModels = getModelsInConversation()
                         .filter(name => name !== model.name)
                         .map(name => sanitizeModelName(name));
-                    allParticipants.push(...otherModels);
+                    otherParticipants.push(...otherModels);
                 }
 
-                if (allParticipants.length > 0) {
-                    systemPrompt += `You are conversing with: ${allParticipants.join(', ')}.
-
-Messages in the format "X said: ..." are FROM participant X - this is conversation history, not a prompt to continue as X. You are ${sanitizedName}. Respond only as yourself.
-
-Do NOT:
-- Generate responses on behalf of other participants
-- Adopt the speaking style or quirks of other models you see in history
-- Prefix your response with "${sanitizedName} said:" or any label
-- Add extra formatting or leading newlines
-
-Simply respond directly as ${sanitizedName} with your own authentic perspective.\n\n`;
+                systemPrompt = `You are ${sanitizedName}. Current time: ${now}.`;
+                if (otherParticipants.length > 0) {
+                    systemPrompt += ` Other participants: ${otherParticipants.join(', ')}.`;
                 }
+                systemPrompt += '\n\n';
             }
 
             // Use activePromptId if set, otherwise fall back to model's system_prompt
@@ -3391,6 +3386,11 @@ Simply respond directly as ${sanitizedName} with your own authentic perspective.
             }
         }
 
+        // Check if user is scrolled near the bottom of the chat
+        function isNearBottom(container, threshold = 100) {
+            return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+        }
+
         function scheduleRender() {
             if (renderTimer) return;
             renderTimer = requestAnimationFrame(() => {
@@ -3399,8 +3399,100 @@ Simply respond directly as ${sanitizedName} with your own authentic perspective.
             });
         }
 
+        // Helper to build assistant message HTML (extracted for reuse)
+        function buildAssistantMessageHtml(msg, index) {
+            const isPromotedThinking = msg.content && msg.thinking &&
+                                       msg.content.trim() === msg.thinking.trim();
+            const rendered = isPromotedThinking ? '' : renderMarkdownWithLatex(msg.content);
+            let contentHtml = '';
+
+            if (msg.modelName) {
+                contentHtml += `<div style="font-size: 12px; color: #888; margin-bottom: 8px; font-weight: 600;">${escapeHtml(stripCompanyPrefix(msg.modelName))}</div>`;
+            }
+
+            const isStreamingThisMessage = isStreaming && currentConversation[currentConversation.length - 1] === msg;
+            if (isStreamingThisMessage && msg.thinking && !msg.content) {
+                contentHtml += `
+                    <div class="inline-thinking-indicator">
+                        <span>Thinking...</span>
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+                `;
+            }
+
+            if (msg.thinking) {
+                const hasThinking = msg.thinking && msg.thinking.trim().length > 0;
+                const hasRealContent = msg.content && msg.content.trim().length > 0 && !isPromotedThinking;
+                const shouldAutoExpand = !hasRealContent && hasThinking;
+                const isCollapsed = msg.thinkingCollapsed !== undefined ? msg.thinkingCollapsed : !shouldAutoExpand;
+
+                const thinkingId = `thinking-${index}`;
+                contentHtml += `
+                    <div class="thinking-toggle" onclick="toggleThinking('${thinkingId}')">
+                        Chain of Thought (click to ${isCollapsed ? 'expand' : 'collapse'})
+                    </div>
+                    <div id="${thinkingId}" class="thinking-content${isCollapsed ? ' collapsed' : ''}">
+                        ${escapeHtml(msg.thinking)}
+                    </div>
+                `;
+
+                if (!hasRealContent && hasThinking) {
+                    contentHtml += `
+                        <div style="font-size: 12px; color: #ff8c42; font-style: italic; margin-top: 4px;">
+                            (Response is in the Chain of Thought section above)
+                        </div>
+                    `;
+                }
+            }
+
+            if (rendered) {
+                contentHtml += `<div class="message-content">${rendered}</div>`;
+            }
+
+            if (msg.images && msg.images.length > 0) {
+                for (const image of msg.images) {
+                    contentHtml += `<div class="file-preview"><img src="${escapeHtml(image.url)}" alt="Generated image" style="max-width: 100%; height: auto; border-radius: 6px; margin-top: 12px;"></div>`;
+                }
+            }
+
+            contentHtml += `
+                <div class="message-actions">
+                    <button onclick="editAssistantMessageInline(${index})">Edit</button>
+                    <button onclick="regenerateResponse(${index})">Regenerate</button>
+                </div>
+            `;
+
+            return contentHtml;
+        }
+
+        // Update an existing assistant message element in place
+        function updateAssistantMessage(element, msg, index) {
+            element.innerHTML = buildAssistantMessageHtml(msg, index);
+        }
+
         function renderConversation() {
             const container = document.getElementById('chat-messages');
+            const wasNearBottom = isNearBottom(container);
+
+            // During streaming, try to update only the last message for better performance
+            if (isStreaming && container.children.length === currentConversation.length && currentConversation.length > 0) {
+                const lastIndex = currentConversation.length - 1;
+                const lastMsg = currentConversation[lastIndex];
+                if (lastMsg.role === 'assistant') {
+                    const lastElement = container.children[lastIndex];
+                    if (lastElement && lastElement.classList.contains('assistant')) {
+                        // Update only the last message content
+                        updateAssistantMessage(lastElement, lastMsg, lastIndex);
+                        if (wasNearBottom) {
+                            container.scrollTop = container.scrollHeight;
+                        }
+                        return;
+                    }
+                }
+            }
+
             container.innerHTML = '';
 
             currentConversation.forEach((msg, index) => {
@@ -3443,98 +3535,26 @@ Simply respond directly as ${sanitizedName} with your own authentic perspective.
                 } else if (msg.role === 'assistant') {
                     const div = document.createElement('div');
                     div.className = 'message assistant';
-
-                    // Check if content is just promoted thinking (duplicate)
-                    const isPromotedThinking = msg.content && msg.thinking &&
-                                               msg.content.trim() === msg.thinking.trim();
-                    const rendered = isPromotedThinking ? '' : renderMarkdownWithLatex(msg.content);
-                    let contentHtml = '';
-
-                    // Show model name for all assistant messages
-                    if (msg.modelName) {
-                        contentHtml += `<div style="font-size: 12px; color: #888; margin-bottom: 8px; font-weight: 600;">${escapeHtml(msg.modelName)}</div>`;
-                    }
-
-                    // Show inline thinking indicator if currently streaming thinking
-                    const isStreamingThisMessage = isStreaming && currentConversation[currentConversation.length - 1] === msg;
-                    if (isStreamingThisMessage && msg.thinking && !msg.content) {
-                        contentHtml += `
-                            <div class="inline-thinking-indicator">
-                                <span>Thinking...</span>
-                                <div class="dot"></div>
-                                <div class="dot"></div>
-                                <div class="dot"></div>
-                            </div>
-                        `;
-                    }
-
-                    // Show thinking content if it exists (collapsible)
-                    if (msg.thinking) {
-                        const hasThinking = msg.thinking && msg.thinking.trim().length > 0;
-                        // Content is "real" only if it exists and isn't just promoted thinking
-                        const hasRealContent = msg.content && msg.content.trim().length > 0 && !isPromotedThinking;
-
-                        // If user has explicitly toggled, respect that.
-                        // Otherwise, auto-expand when there is no real content but there is thinking.
-                        const shouldAutoExpand = !hasRealContent && hasThinking;
-                        const isCollapsed =
-                            msg.thinkingCollapsed !== undefined
-                                ? msg.thinkingCollapsed
-                                : !shouldAutoExpand;
-
-                        const thinkingId = `thinking-${index}`;
-                        contentHtml += `
-                            <div class="thinking-toggle" onclick="toggleThinking('${thinkingId}')">
-                                Chain of Thought (click to ${isCollapsed ? 'expand' : 'collapse'})
-                            </div>
-                            <div id="${thinkingId}" class="thinking-content${isCollapsed ? ' collapsed' : ''}">
-                                ${escapeHtml(msg.thinking)}
-                            </div>
-                        `;
-
-                        // Add hint when thinking is the only channel
-                        if (!hasRealContent && hasThinking) {
-                            contentHtml += `
-                                <div style="font-size: 12px; color: #ff8c42; font-style: italic; margin-top: 4px;">
-                                    (Response is in the Chain of Thought section above)
-                                </div>
-                            `;
-                        }
-                    }
-
-                    // Only render message-content div if there's actual content
-                    if (rendered) {
-                        contentHtml += `<div class="message-content">${rendered}</div>`;
-                    }
-
-                    // Render received images
-                    if (msg.images && msg.images.length > 0) {
-                        for (const image of msg.images) {
-                            contentHtml += `<div class="file-preview"><img src="${escapeHtml(image.url)}" alt="Generated image" style="max-width: 100%; height: auto; border-radius: 6px; margin-top: 12px;"></div>`;
-                        }
-                    }
-
-                    // Add edit and regenerate buttons
-                    contentHtml += `
-                        <div class="message-actions">
-                            <button onclick="editAssistantMessageInline(${index})">Edit</button>
-                            <button onclick="regenerateResponse(${index})">Regenerate</button>
-                        </div>
-                    `;
-
-                    div.innerHTML = contentHtml;
+                    div.innerHTML = buildAssistantMessageHtml(msg, index);
                     container.appendChild(div);
                 }
             });
 
-            container.scrollTop = container.scrollHeight;
+            // Only auto-scroll if user was already near bottom
+            if (wasNearBottom) {
+                container.scrollTop = container.scrollHeight;
+            }
 
-            // Fix scroll jitter by re-scrolling when images load
-            container.querySelectorAll('img').forEach(img => {
-                img.addEventListener('load', () => {
-                    container.scrollTop = container.scrollHeight;
-                }, { once: true });
-            });
+            // Fix scroll jitter by re-scrolling when images load (only if near bottom)
+            if (wasNearBottom) {
+                container.querySelectorAll('img').forEach(img => {
+                    img.addEventListener('load', () => {
+                        if (isNearBottom(container)) {
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    }, { once: true });
+                });
+            }
         }
 
         function toggleThinking(thinkingId) {
