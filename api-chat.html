@@ -802,11 +802,6 @@
                         </div>
                     </div>
                     <div class="mode-selector" style="margin-top: 10px;">
-                        <div id="context-usage" style="font-size: 12px; color: #888; padding: 8px; background: #2a2a2a; border-radius: 4px;">
-                            Context: <span id="token-estimate">0</span> tokens (estimate)
-                        </div>
-                    </div>
-                    <div class="mode-selector" style="margin-top: 10px;">
                         <label style="display: flex; align-items: center; gap: 8px;">
                             <input type="checkbox" id="include-files-checkbox" style="width: auto;">
                             <span>Include files in message history</span>
@@ -1177,63 +1172,6 @@
         let conversationHistory = []; // Array to store saved conversations
         let renderTimer = null; // Timer for debouncing render calls during streaming
         let thinkingCollapseState = {}; // View state for thinking section collapse (keyed by message index)
-
-        // Helper: Estimate token count (~4 chars per token, rough approximation)
-        function estimateTokens(text) {
-            if (!text) return 0;
-            return Math.ceil(text.length / 4);
-        }
-
-        // Helper: Calculate total context tokens for current conversation
-        function calculateContextTokens() {
-            let total = 0;
-            for (const msg of currentConversation) {
-                if (msg.content) {
-                    total += estimateTokens(msg.content);
-                }
-                if (msg.thinking) {
-                    total += estimateTokens(msg.thinking);
-                }
-                // Include file text if enabled
-                if (includeFilesInHistory && msg.files) {
-                    for (const file of msg.files) {
-                        if (file.extractedText) {
-                            total += estimateTokens(file.extractedText);
-                        }
-                    }
-                }
-            }
-            // Add system prompt estimate
-            if (activePromptId) {
-                const prompt = systemPrompts.find(p => p.id === activePromptId);
-                if (prompt) {
-                    total += estimateTokens(prompt.content);
-                }
-            }
-            return total;
-        }
-
-        // Helper: Update token display
-        function updateTokenDisplay() {
-            const el = document.getElementById('token-estimate');
-            if (el) {
-                const tokens = calculateContextTokens();
-                el.textContent = tokens.toLocaleString();
-                // Color code: green < 8k, yellow < 32k, orange < 128k, red >= 128k
-                const parent = el.parentElement;
-                if (parent) {
-                    if (tokens < 8000) {
-                        parent.style.color = '#888';
-                    } else if (tokens < 32000) {
-                        parent.style.color = '#c9a227';
-                    } else if (tokens < 128000) {
-                        parent.style.color = '#ff8c42';
-                    } else {
-                        parent.style.color = '#ff4a4a';
-                    }
-                }
-            }
-        }
 
         // Helper: Expand selectedModelEntries to flat array of indices for iteration
         function expandModelEntries() {
@@ -2028,9 +1966,6 @@
             if (markdownRenderingCheckbox) {
                 markdownRenderingCheckbox.checked = enableMarkdownRendering;
             }
-
-            // Update context token display
-            updateTokenDisplay();
 
             popup.style.display = 'flex';
         }
