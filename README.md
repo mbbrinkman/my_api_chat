@@ -13,7 +13,6 @@ https://mbbrinkman.github.io/my_api_chat/api-chat.html
 - **Serial**: Models respond sequentially, each seeing previous model responses
 - **Rotating**: Serial mode with model order rotation on each turn
 - **Autonomous**: Models converse with each other without user input
-- **Model Reordering**: Use arrow buttons to control execution order in Serial/Rotating modes
 
 ### Core Functionality
 - Real-time streaming responses

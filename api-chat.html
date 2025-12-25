@@ -922,7 +922,6 @@
                     <li><strong>Serial:</strong> Models respond one after another. Each model sees all previous messages including other models' responses.</li>
                     <li><strong>Rotating:</strong> Like Serial, but the order rotates each turn (1,2,3 → 3,1,2 → 2,3,1 → repeat).</li>
                     <li><strong>Autonomous:</strong> Models converse with each other without human input. Click "Start Auto" to begin.</li>
-                    <li><strong>Reordering:</strong> Use the ▲/▼ arrow buttons next to selected models to control their execution order in Serial/Rotating modes.</li>
                 </ul>
 
                 <h3>Iterations</h3>
@@ -1211,18 +1210,6 @@
         // Helper: Check if a model is selected
         function isModelSelected(modelIndex) {
             return selectedModelEntries.some(e => e.modelIndex === modelIndex);
-        }
-
-        // Helper: Move model entry up or down in order
-        function reorderModelEntry(modelIndex, direction) {
-            const idx = selectedModelEntries.findIndex(e => e.modelIndex === modelIndex);
-            if (idx === -1) return;
-            const newIdx = idx + direction;
-            if (newIdx < 0 || newIdx >= selectedModelEntries.length) return;
-            // Swap
-            [selectedModelEntries[idx], selectedModelEntries[newIdx]] =
-                [selectedModelEntries[newIdx], selectedModelEntries[idx]];
-            saveToStorage();
         }
 
         // Helper: Migrate old format [0,0,1,1] to new format [{modelIndex: 0, count: 2}, ...]
@@ -1800,7 +1787,6 @@
                         }
                         saveToStorage();
                         updateModelPickerButton();
-                        refreshReorderButtons();
                     });
 
                     label.appendChild(checkbox);
@@ -1837,32 +1823,6 @@
 
                     label.appendChild(modelInfo);
 
-                    // Reorder buttons container
-                    const reorderBtns = document.createElement('div');
-                    reorderBtns.className = 'reorder-buttons';
-                    reorderBtns.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
-
-                    const upBtn = document.createElement('button');
-                    upBtn.innerHTML = '&#9650;';
-                    upBtn.title = 'Move up';
-                    upBtn.style.cssText = 'padding: 0 4px; font-size: 10px; background: #3a3a3a; border: 1px solid #4a4a4a; color: #888; border-radius: 3px; cursor: pointer; line-height: 1;';
-                    upBtn.onclick = () => {
-                        reorderModelEntry(index, -1);
-                        openModelPicker(); // Refresh UI
-                    };
-
-                    const downBtn = document.createElement('button');
-                    downBtn.innerHTML = '&#9660;';
-                    downBtn.title = 'Move down';
-                    downBtn.style.cssText = 'padding: 0 4px; font-size: 10px; background: #3a3a3a; border: 1px solid #4a4a4a; color: #888; border-radius: 3px; cursor: pointer; line-height: 1;';
-                    downBtn.onclick = () => {
-                        reorderModelEntry(index, 1);
-                        openModelPicker(); // Refresh UI
-                    };
-
-                    reorderBtns.appendChild(upBtn);
-                    reorderBtns.appendChild(downBtn);
-
                     // Add instance count input
                     const countInput = document.createElement('input');
                     countInput.type = 'number';
@@ -1884,24 +1844,10 @@
 
                     // Assemble the wrapper
                     wrapper.appendChild(label);
-                    wrapper.appendChild(reorderBtns);
                     wrapper.appendChild(countInput);
                     checkboxesContainer.appendChild(wrapper);
                 });
             }
-
-            // Helper to show/hide reorder buttons based on selection
-            function refreshReorderButtons() {
-                const wrappers = checkboxesContainer.querySelectorAll('[data-model-index]');
-                wrappers.forEach(w => {
-                    const idx = parseInt(w.dataset.modelIndex);
-                    const btns = w.querySelector('.reorder-buttons');
-                    if (btns) {
-                        btns.style.visibility = isModelSelected(idx) ? 'visible' : 'hidden';
-                    }
-                });
-            }
-            refreshReorderButtons();
 
             // Set the current mode
             document.querySelectorAll('input[name="model-mode"]').forEach(radio => {
