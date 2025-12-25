@@ -2802,6 +2802,11 @@
             return Array.from(modelsInHistory);
         }
 
+        // Escape special regex characters in a string
+        function escapeRegex(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
         function buildSystemPrompt(model) {
             let systemPrompt = '';
 
@@ -3096,6 +3101,28 @@
                 body.messages.unshift({ role: 'system', content: systemPrompt });
             }
 
+            // Build dynamic stop sequences for multi-model conversations
+            // This prevents models from generating responses "as" other participants
+            if (isMultiModelContext()) {
+                let dynamicStopSequences = [];
+
+                // Stop before any participant could "speak"
+                dynamicStopSequences.push(`\n${userIdentifier} said:`);
+
+                for (const name of getModelsInConversation()) {
+                    const sanitized = sanitizeModelName(name);
+                    dynamicStopSequences.push(`\n${sanitized} said:`);
+                }
+
+                // Deduplicate
+                dynamicStopSequences = [...new Set(dynamicStopSequences)];
+
+                // Merge with any existing stop sequences from model config
+                const existingStops = body.stop || [];
+                // OpenRouter typically allows up to 4 stop sequences, some providers allow more
+                body.stop = [...new Set([...dynamicStopSequences, ...existingStops])].slice(0, 4);
+            }
+
             // Debug: Log the actual messages being sent (remove in production)
             console.log('API Request for', model.name, ':', {
                 model: body.model,
@@ -3343,6 +3370,24 @@
                         }
                     }
                 }
+            }
+
+            // Strip any "X said:" patterns that leaked through stop sequences
+            // This catches edge cases like partial matches or slight variations
+            if (isMultiModelContext() && assistantMessage.content) {
+                const participantNames = [
+                    userIdentifier,
+                    ...getModelsInConversation().map(n => sanitizeModelName(n))
+                ];
+
+                for (const name of participantNames) {
+                    // Match "\nName said:" and everything after it
+                    const pattern = new RegExp(`\\n${escapeRegex(name)} said:[\\s\\S]*$`, 'i');
+                    assistantMessage.content = assistantMessage.content.replace(pattern, '');
+                }
+
+                // Trim any trailing whitespace left over
+                assistantMessage.content = assistantMessage.content.trimEnd();
             }
 
             // Promote thinking to content when content is empty
