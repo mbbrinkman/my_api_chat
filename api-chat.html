@@ -1164,7 +1164,7 @@
         let enableExtendedThinking = false; // Whether to enable extended thinking/reasoning mode
         let thinkingEffort = 'high'; // Effort level for extended thinking: 'low', 'medium', or 'high'
         let enableLatexRendering = false; // Whether to render LaTeX (loads KaTeX on-demand)
-        let enableMarkdownRendering = false; // Whether to render Markdown (loads snarkdown on-demand)
+        let enableMarkdownRendering = false; // Whether to render Markdown (loads marked.js on-demand)
         let userIdentifier = 'Human'; // Customizable identifier for the user in multi-model conversations
         let availableModels = [];
         let filteredModels = [];
@@ -1247,7 +1247,7 @@
             await loadFromStorage();
             // Load rendering libraries if previously enabled
             if (enableLatexRendering) await loadKaTeX();
-            if (enableMarkdownRendering) await loadSnarkdown();
+            if (enableMarkdownRendering) await loadMarked();
             setupEventListeners();
             updateModelSelect();
             updateModelsList();
@@ -1592,7 +1592,7 @@
                 markdownRenderingCheckbox.addEventListener('change', async (e) => {
                     enableMarkdownRendering = e.target.checked;
                     if (enableMarkdownRendering) {
-                        await loadSnarkdown();
+                        await loadMarked();
                     }
                     saveToStorage();
                     renderConversation();
@@ -4567,23 +4567,30 @@
             katexLoaded = true;
         }
 
-        // Lazy-load snarkdown
-        let snarkdownLoaded = false;
-        async function loadSnarkdown() {
-            if (snarkdownLoaded || typeof snarkdown !== 'undefined') {
-                snarkdownLoaded = true;
+        // Lazy-load marked.js
+        let markedLoaded = false;
+        async function loadMarked() {
+            if (markedLoaded || typeof marked !== 'undefined') {
+                markedLoaded = true;
                 return;
             }
 
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/snarkdown@2.0.0/dist/snarkdown.umd.js';
-                script.onload = resolve;
+                script.src = 'https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js';
+                script.onload = () => {
+                    // Configure marked for security and style
+                    marked.setOptions({
+                        breaks: true,  // Convert \n to <br>
+                        gfm: true      // GitHub Flavored Markdown
+                    });
+                    resolve();
+                };
                 script.onerror = reject;
                 document.head.appendChild(script);
             });
 
-            snarkdownLoaded = true;
+            markedLoaded = true;
         }
 
         function renderMarkdownWithLatex(text) {
@@ -4675,12 +4682,8 @@
             processed = escapeHtml(processed);
 
             // 6. Process markdown on escaped text (safe - no XSS since we don't unescape!)
-            if (enableMarkdownRendering && typeof snarkdown !== 'undefined') {
-                processed = snarkdown(processed);
-                // Convert newlines to <br>, but not adjacent to HTML tags
-                processed = processed.replace(/>[\t ]*\n/g, '>\n'); // Preserve newlines after tags
-                processed = processed.replace(/\n[\t ]*</g, '\n<'); // Preserve newlines before tags
-                processed = processed.replace(/([^>\n])\n([^<])/g, '$1<br>\n$2'); // Add <br> elsewhere
+            if (enableMarkdownRendering && typeof marked !== 'undefined') {
+                processed = marked.parse(processed);
             }
 
             // 7. Restore all masked content
