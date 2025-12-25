@@ -371,6 +371,94 @@
             color: #e0e0e0;
         }
 
+        #prefill-indicator {
+            display: none;
+            color: #9b59b6;
+            font-size: 12px;
+            margin-bottom: 4px;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #prefill-indicator.visible {
+            display: flex;
+        }
+
+        #prefill-indicator button {
+            background: transparent;
+            border: none;
+            color: #888;
+            padding: 0;
+            cursor: pointer;
+            font-size: 12px;
+            text-decoration: underline;
+        }
+
+        #prefill-indicator button:hover {
+            color: #e0e0e0;
+        }
+
+        #message-input.prefilling {
+            border-color: #9b59b6;
+        }
+
+        .editable-name {
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .editable-name:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .name-editor {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .name-editor input {
+            background: #2a2a2a;
+            border: 1px solid #4a4a4a;
+            color: #e0e0e0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            width: 120px;
+        }
+
+        .name-editor button {
+            background: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            color: #e0e0e0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .name-editor button:hover {
+            background: #4a4a4a;
+        }
+
+        .role-switch-btn {
+            background: transparent;
+            border: 1px solid #4a4a4a;
+            color: #888;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            margin-left: 4px;
+        }
+
+        .role-switch-btn:hover {
+            background: #3a3a3a;
+            color: #e0e0e0;
+        }
+
         .file-upload-btn, .model-select, #send-btn {
             background: #3a3a3a;
             border: 1px solid #4a4a4a;
@@ -410,6 +498,22 @@
 
         #stop-btn:hover {
             background: #ff5252;
+        }
+
+        #prefill-btn {
+            background: #9b59b6;
+            border-color: #9b59b6;
+            font-weight: 600;
+        }
+
+        #prefill-btn:hover {
+            background: #8e44ad;
+        }
+
+        #prefill-btn:disabled {
+            background: #3a3a3a;
+            color: #666;
+            cursor: not-allowed;
         }
 
         .attached-files {
@@ -654,9 +758,14 @@
                     <span>editing</span>
                     <button onclick="cancelEditMode()">cancel</button>
                 </div>
+                <div id="prefill-indicator">
+                    <span>prefilling assistant response</span>
+                    <button onclick="cancelPrefillMode()">cancel</button>
+                </div>
                 <textarea id="message-input" placeholder="Type a message... (Click Send button to send)"></textarea>
                 <div class="send-controls">
                     <button id="send-btn">Send</button>
+                    <button id="prefill-btn" title="Start an assistant response that models will continue">Prefill</button>
                     <button id="stop-btn">Stop</button>
                     <button id="auto-btn" style="display: none;">Start Auto</button>
                 </div>
@@ -862,6 +971,18 @@
                 <h4>Regenerate Responses</h4>
                 <p>Click "Regenerate" to have the same model create a different response.</p>
 
+                <h4>Continue Responses</h4>
+                <p>Click "Continue" on any AI response to have the model extend/finish that response. Useful when a response was cut off or you want more detail.</p>
+
+                <h4>Prefill Mode</h4>
+                <p>Click "Prefill" to start typing the beginning of an AI response. The model will continue from where you left off. Great for guiding the model's response style or format.</p>
+
+                <h4>Edit Names</h4>
+                <p>Click on any participant name (user or model) in the chat to edit it. This lets you customize how participants are identified in the conversation.</p>
+
+                <h4>Role Switching</h4>
+                <p>Click "→ User" or "→ Assistant" buttons next to any message to convert it between user and assistant roles. This is useful for restructuring conversations or creating custom dialogue flows.</p>
+
                 <h4>Edit User Messages</h4>
                 <p>Click "Edit" button on your own messages to revise and branch the conversation from that point.</p>
 
@@ -1030,6 +1151,7 @@
         let currentConversation = [];
         let attachedFiles = [];
         let editingMessageIndex = null;
+        let isPrefilling = false; // Whether we're in prefill mode (starting an assistant response)
         let isStreaming = false;
         let userStoppedGeneration = false; // Flag to prevent subsequent models from responding after stop is pressed
         let selectedModelIndices = [];
@@ -1250,6 +1372,9 @@
 
             // Stop generation
             document.getElementById('stop-btn').addEventListener('click', stopGeneration);
+
+            // Prefill button
+            document.getElementById('prefill-btn').addEventListener('click', enterPrefillMode);
 
             // File upload
             document.getElementById('file-input').addEventListener('change', handleFileUpload);
@@ -2454,6 +2579,12 @@
             const input = document.getElementById('message-input');
             const messageText = input.value.trim();
 
+            // Handle prefill mode
+            if (isPrefilling) {
+                await sendPrefill(messageText);
+                return;
+            }
+
             if (!messageText && attachedFiles.length === 0) return;
             if (models.length === 0) {
                 alert('Please configure at least one model in Settings');
@@ -2539,6 +2670,108 @@
             hideStopButton();
             renderConversation();
             saveToStorage();
+        }
+
+        async function sendPrefill(prefillContent) {
+            // Prefill mode: create assistant messages with prefilled content that models continue
+            if (models.length === 0) {
+                alert('Please configure at least one model in Settings');
+                cancelPrefillMode();
+                return;
+            }
+
+            if (selectedModelIndices.length === 0) {
+                alert('Please select at least one model');
+                cancelPrefillMode();
+                return;
+            }
+
+            // Reset prefill mode UI
+            isPrefilling = false;
+            showPrefillIndicator(false);
+            const input = document.getElementById('message-input');
+            input.value = '';
+            input.placeholder = 'Type a message... (Click Send button to send)';
+
+            renderConversation();
+            saveToStorage();
+
+            // Start streaming response
+            isStreaming = true;
+            userStoppedGeneration = false;
+            currentAbortControllers = [];
+            showStopButton();
+            startBackgroundAudio();
+            renderConversation();
+
+            try {
+                // In prefill mode, we use a special handler that pre-populates the assistant message
+                await handlePrefillMode(prefillContent);
+            } catch (error) {
+                console.error('Error:', error);
+
+                // Remove any empty assistant messages that were added before the error
+                currentConversation = currentConversation.filter(msg => {
+                    if (msg.role === 'assistant') {
+                        return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
+                    }
+                    return true;
+                });
+
+                const errorMessage = {
+                    role: 'assistant',
+                    content: `Error: ${error.message}`,
+                    timestamp: new Date().toISOString()
+                };
+                currentConversation.push(errorMessage);
+                renderConversation();
+            }
+
+            // Final cleanup
+            currentConversation = currentConversation.filter(msg => {
+                if (msg.role === 'assistant') {
+                    return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
+                }
+                return true;
+            });
+
+            isStreaming = false;
+            stopBackgroundAudio();
+            currentAbortControllers = [];
+            hideStopButton();
+            renderConversation();
+            saveToStorage();
+        }
+
+        async function handlePrefillMode(prefillContent) {
+            // Similar to parallel mode but with prefilled content
+            // For simplicity, use the first selected model for prefill continuation
+            const modelIndex = selectedModelIndices[0];
+            const model = models[modelIndex];
+
+            const assistantMessage = {
+                role: 'assistant',
+                content: prefillContent || '',
+                thinking: '',
+                images: [],
+                modelName: model.name,
+                timestamp: new Date().toISOString()
+            };
+            currentConversation.push(assistantMessage);
+            renderConversation();
+
+            try {
+                await streamResponseWithPrefill(model, assistantMessage, prefillContent);
+            } catch (error) {
+                console.error('Error in prefill mode:', error);
+                if (!assistantMessage.content) {
+                    assistantMessage.content = `Error: ${error.message}`;
+                }
+                renderConversation();
+            }
+
+            saveToStorage();
+            renderConversation();
         }
 
         async function handleParallelMode() {
@@ -2857,6 +3090,21 @@
 
         async function streamResponse(model, assistantMessage) {
             const messages = buildMessagesForAPI(model, assistantMessage);
+            await streamOpenRouter(model, messages, assistantMessage);
+        }
+
+        async function streamResponseWithPrefill(model, assistantMessage, prefillContent) {
+            // Build messages, excluding the current assistant message we're generating
+            const messages = buildMessagesForAPI(model, assistantMessage);
+
+            // Add the prefilled assistant message that the model should continue from
+            if (prefillContent) {
+                messages.push({
+                    role: 'assistant',
+                    content: prefillContent
+                });
+            }
+
             await streamOpenRouter(model, messages, assistantMessage);
         }
 
@@ -3461,9 +3709,12 @@
             const rendered = isPromotedThinking ? '' : renderMarkdownWithLatex(msg.content);
             let contentHtml = '';
 
-            if (msg.modelName) {
-                contentHtml += `<div style="font-size: 12px; color: #888; margin-bottom: 8px; font-weight: 600;">${escapeHtml(stripCompanyPrefix(msg.modelName))}</div>`;
-            }
+            // Editable model name header with role switch button
+            const displayName = msg.modelName ? stripCompanyPrefix(msg.modelName) : 'Assistant';
+            contentHtml += `<div style="font-size: 12px; color: #888; margin-bottom: 8px; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+                <span class="editable-name" onclick="editMessageName(${index})" title="Click to edit name">${escapeHtml(displayName)}</span>
+                <button class="role-switch-btn" onclick="switchMessageRole(${index})" title="Convert to user message">→ User</button>
+            </div>`;
 
             const isStreamingThisMessage = isStreaming && currentConversation[currentConversation.length - 1] === msg;
             if (isStreamingThisMessage && msg.thinking && !msg.content) {
@@ -3515,6 +3766,7 @@
             contentHtml += `
                 <div class="message-actions">
                     <button onclick="editAssistantMessageInline(${index})">Edit</button>
+                    <button onclick="continueResponse(${index})">Continue</button>
                     <button onclick="regenerateResponse(${index})">Regenerate</button>
                 </div>
             `;
@@ -3559,9 +3811,16 @@
                 if (msg.role === 'user') {
                     const div = document.createElement('div');
                     div.className = 'message user';
-                    
-                    let contentHtml = `<div class="message-content">${escapeHtml(msg.content)}</div>`;
-                    
+
+                    // Editable user name header with role switch button
+                    const displayName = msg.senderName || userIdentifier || 'User';
+                    let contentHtml = `<div style="font-size: 12px; color: #888; margin-bottom: 8px; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+                        <span class="editable-name" onclick="editMessageName(${index})" title="Click to edit name">${escapeHtml(displayName)}</span>
+                        <button class="role-switch-btn" onclick="switchMessageRole(${index})" title="Convert to assistant message">→ Assistant</button>
+                    </div>`;
+
+                    contentHtml += `<div class="message-content">${escapeHtml(msg.content)}</div>`;
+
                     if (msg.files) {
                         for (const file of msg.files) {
                             if (file.type.startsWith('image/')) {
@@ -3668,6 +3927,158 @@
             attachedFiles = [];
             renderAttachedFiles();
             showEditIndicator(false);
+        }
+
+        function enterPrefillMode() {
+            if (isStreaming) return;
+            if (isPrefilling) return;
+
+            // Cancel edit mode if active
+            if (editingMessageIndex !== null) {
+                cancelEditMode();
+            }
+
+            isPrefilling = true;
+            showPrefillIndicator(true);
+
+            const input = document.getElementById('message-input');
+            input.placeholder = 'Enter the start of the assistant response...';
+            input.focus();
+        }
+
+        function showPrefillIndicator(show) {
+            const indicator = document.getElementById('prefill-indicator');
+            const input = document.getElementById('message-input');
+            if (show) {
+                indicator.classList.add('visible');
+                input.classList.add('prefilling');
+            } else {
+                indicator.classList.remove('visible');
+                input.classList.remove('prefilling');
+            }
+        }
+
+        function cancelPrefillMode() {
+            isPrefilling = false;
+            document.getElementById('message-input').value = '';
+            document.getElementById('message-input').placeholder = 'Type a message... (Click Send button to send)';
+            showPrefillIndicator(false);
+        }
+
+        function editMessageName(index) {
+            const msg = currentConversation[index];
+            if (!msg) return;
+
+            const container = document.getElementById('chat-messages');
+            const messageDiv = container.children[index];
+            if (!messageDiv) return;
+
+            // Find the name element
+            const nameSpan = messageDiv.querySelector('.editable-name');
+            if (!nameSpan) return;
+
+            // Get current name
+            let currentName;
+            if (msg.role === 'user') {
+                currentName = msg.senderName || userIdentifier || 'User';
+            } else {
+                currentName = msg.modelName ? stripCompanyPrefix(msg.modelName) : 'Assistant';
+            }
+
+            // Replace with input
+            const parentDiv = nameSpan.parentElement;
+            const originalHtml = parentDiv.innerHTML;
+
+            parentDiv.innerHTML = `
+                <div class="name-editor">
+                    <input type="text" value="${escapeHtml(currentName)}" id="name-edit-input-${index}">
+                    <button onclick="saveMessageName(${index})">Save</button>
+                    <button onclick="cancelNameEdit(${index})">Cancel</button>
+                </div>
+            `;
+
+            // Store original HTML for cancel
+            parentDiv.dataset.originalHtml = originalHtml;
+
+            // Focus and select
+            const input = document.getElementById(`name-edit-input-${index}`);
+            if (input) {
+                input.focus();
+                input.select();
+
+                // Handle Enter key
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        saveMessageName(index);
+                    } else if (e.key === 'Escape') {
+                        cancelNameEdit(index);
+                    }
+                });
+            }
+        }
+
+        function saveMessageName(index) {
+            const msg = currentConversation[index];
+            if (!msg) return;
+
+            const input = document.getElementById(`name-edit-input-${index}`);
+            if (!input) return;
+
+            const newName = input.value.trim();
+            if (!newName) return;
+
+            // Update the message
+            if (msg.role === 'user') {
+                msg.senderName = newName;
+            } else {
+                msg.modelName = newName;
+            }
+
+            saveToStorage();
+            renderConversation();
+        }
+
+        function cancelNameEdit(index) {
+            const container = document.getElementById('chat-messages');
+            const messageDiv = container.children[index];
+            if (!messageDiv) return;
+
+            const nameEditor = messageDiv.querySelector('.name-editor');
+            if (!nameEditor) return;
+
+            const parentDiv = nameEditor.parentElement;
+            if (parentDiv && parentDiv.dataset.originalHtml) {
+                parentDiv.innerHTML = parentDiv.dataset.originalHtml;
+            } else {
+                // Fallback: re-render the whole conversation
+                renderConversation();
+            }
+        }
+
+        function switchMessageRole(index) {
+            const msg = currentConversation[index];
+            if (!msg) return;
+
+            if (msg.role === 'user') {
+                // Convert user message to assistant message
+                msg.role = 'assistant';
+                msg.modelName = msg.senderName || userIdentifier || 'User';
+                delete msg.senderName;
+                // Keep content, clear user-specific fields if any
+                delete msg.files; // Assistant messages don't have files in the same way
+            } else if (msg.role === 'assistant') {
+                // Convert assistant message to user message
+                msg.role = 'user';
+                msg.senderName = msg.modelName ? stripCompanyPrefix(msg.modelName) : 'Assistant';
+                delete msg.modelName;
+                // Keep content, clear assistant-specific fields
+                delete msg.thinking;
+                delete msg.thinkingCollapsed;
+                delete msg.images;
+            }
+
+            saveToStorage();
+            renderConversation();
         }
 
         function editUserMessageInline(index) {
@@ -3864,6 +4275,71 @@
             hideStopButton();
             renderConversation();
             saveToStorage();
+        }
+
+        async function continueResponse(index) {
+            const msg = currentConversation[index];
+            if (msg.role !== 'assistant') return;
+            if (isStreaming) return;
+
+            // Find which model generated this response
+            let model = null;
+
+            if (msg.modelName) {
+                model = models.find(m => m.name === msg.modelName);
+                if (!model) {
+                    // Try to find by model_id if name doesn't match
+                    model = models.find(m => stripCompanyPrefix(m.name) === stripCompanyPrefix(msg.modelName));
+                }
+                if (!model) {
+                    alert(`Cannot continue: model "${msg.modelName}" not found. Using first selected model instead.`);
+                    if (selectedModelIndices.length > 0) {
+                        model = models[selectedModelIndices[0]];
+                    } else {
+                        alert('No models selected');
+                        return;
+                    }
+                }
+            } else if (selectedModelIndices.length > 0) {
+                model = models[selectedModelIndices[0]];
+            } else {
+                alert('Cannot continue: No models selected');
+                return;
+            }
+
+            // Truncate conversation to this message (inclusive) - remove any messages after it
+            currentConversation = currentConversation.slice(0, index + 1);
+
+            // Store the current content as prefill
+            const prefillContent = msg.content || '';
+
+            renderConversation();
+            saveToStorage();
+
+            // Start streaming continuation
+            isStreaming = true;
+            userStoppedGeneration = false;
+            currentAbortControllers = [];
+            showStopButton();
+            startBackgroundAudio();
+
+            try {
+                // Use prefill streaming to continue from where the message left off
+                await streamResponseWithPrefill(model, msg, prefillContent);
+            } catch (error) {
+                console.error('Continue error:', error);
+                if (!msg.content) {
+                    msg.content = 'Error: ' + error.message;
+                }
+                renderConversation();
+            }
+
+            isStreaming = false;
+            stopBackgroundAudio();
+            currentAbortControllers = [];
+            hideStopButton();
+            saveToStorage();
+            renderConversation();
         }
 
         async function regenerateResponse(index) {
