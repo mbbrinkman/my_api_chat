@@ -4,12 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <title>OpenRouter Multi-Model Chat</title>
-    <!-- PDF.js for PDF text extraction -->
-    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-    <script>
-        // Configure PDF.js worker
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-    </script>
+    <!-- PDF.js loaded on-demand when first PDF is uploaded -->
     <style>
         * {
             box-sizing: border-box;
@@ -807,6 +802,11 @@
                         </div>
                     </div>
                     <div class="mode-selector" style="margin-top: 10px;">
+                        <div id="context-usage" style="font-size: 12px; color: #888; padding: 8px; background: #2a2a2a; border-radius: 4px;">
+                            Context: <span id="token-estimate">0</span> tokens (estimate)
+                        </div>
+                    </div>
+                    <div class="mode-selector" style="margin-top: 10px;">
                         <label style="display: flex; align-items: center; gap: 8px;">
                             <input type="checkbox" id="include-files-checkbox" style="width: auto;">
                             <span>Include files in message history</span>
@@ -1154,7 +1154,8 @@
         let isPrefilling = false; // Whether we're in prefill mode (starting an assistant response)
         let isStreaming = false;
         let userStoppedGeneration = false; // Flag to prevent subsequent models from responding after stop is pressed
-        let selectedModelIndices = [];
+        // Structure: [{modelIndex: 0, count: 3}, {modelIndex: 1, count: 2}] instead of [0,0,0,1,1]
+        let selectedModelEntries = [];
         let multiModelMode = 'parallel';
         let rotationIndex = 0;
         let isAutonomousRunning = false;
@@ -1175,6 +1176,129 @@
         let currentAbortControllers = [];
         let conversationHistory = []; // Array to store saved conversations
         let renderTimer = null; // Timer for debouncing render calls during streaming
+        let thinkingCollapseState = {}; // View state for thinking section collapse (keyed by message index)
+
+        // Helper: Estimate token count (~4 chars per token, rough approximation)
+        function estimateTokens(text) {
+            if (!text) return 0;
+            return Math.ceil(text.length / 4);
+        }
+
+        // Helper: Calculate total context tokens for current conversation
+        function calculateContextTokens() {
+            let total = 0;
+            for (const msg of currentConversation) {
+                if (msg.content) {
+                    total += estimateTokens(msg.content);
+                }
+                if (msg.thinking) {
+                    total += estimateTokens(msg.thinking);
+                }
+                // Include file text if enabled
+                if (includeFilesInHistory && msg.files) {
+                    for (const file of msg.files) {
+                        if (file.extractedText) {
+                            total += estimateTokens(file.extractedText);
+                        }
+                    }
+                }
+            }
+            // Add system prompt estimate
+            if (activePromptId) {
+                const prompt = systemPrompts.find(p => p.id === activePromptId);
+                if (prompt) {
+                    total += estimateTokens(prompt.content);
+                }
+            }
+            return total;
+        }
+
+        // Helper: Update token display
+        function updateTokenDisplay() {
+            const el = document.getElementById('token-estimate');
+            if (el) {
+                const tokens = calculateContextTokens();
+                el.textContent = tokens.toLocaleString();
+                // Color code: green < 8k, yellow < 32k, orange < 128k, red >= 128k
+                const parent = el.parentElement;
+                if (parent) {
+                    if (tokens < 8000) {
+                        parent.style.color = '#888';
+                    } else if (tokens < 32000) {
+                        parent.style.color = '#c9a227';
+                    } else if (tokens < 128000) {
+                        parent.style.color = '#ff8c42';
+                    } else {
+                        parent.style.color = '#ff4a4a';
+                    }
+                }
+            }
+        }
+
+        // Helper: Expand selectedModelEntries to flat array of indices for iteration
+        function expandModelEntries() {
+            const result = [];
+            for (const entry of selectedModelEntries) {
+                for (let i = 0; i < entry.count; i++) {
+                    result.push(entry.modelIndex);
+                }
+            }
+            return result;
+        }
+
+        // Helper: Get total number of model instances
+        function getTotalModelInstances() {
+            return selectedModelEntries.reduce((sum, e) => sum + e.count, 0);
+        }
+
+        // Helper: Get instance count for a specific model index
+        function getInstanceCount(modelIndex) {
+            const entry = selectedModelEntries.find(e => e.modelIndex === modelIndex);
+            return entry ? entry.count : 0;
+        }
+
+        // Helper: Set instance count for a specific model index
+        function setInstanceCount(modelIndex, count) {
+            const existing = selectedModelEntries.find(e => e.modelIndex === modelIndex);
+            if (count <= 0) {
+                selectedModelEntries = selectedModelEntries.filter(e => e.modelIndex !== modelIndex);
+            } else if (existing) {
+                existing.count = count;
+            } else {
+                selectedModelEntries.push({ modelIndex, count });
+            }
+        }
+
+        // Helper: Check if a model is selected
+        function isModelSelected(modelIndex) {
+            return selectedModelEntries.some(e => e.modelIndex === modelIndex);
+        }
+
+        // Helper: Move model entry up or down in order
+        function reorderModelEntry(modelIndex, direction) {
+            const idx = selectedModelEntries.findIndex(e => e.modelIndex === modelIndex);
+            if (idx === -1) return;
+            const newIdx = idx + direction;
+            if (newIdx < 0 || newIdx >= selectedModelEntries.length) return;
+            // Swap
+            [selectedModelEntries[idx], selectedModelEntries[newIdx]] =
+                [selectedModelEntries[newIdx], selectedModelEntries[idx]];
+            saveToStorage();
+        }
+
+        // Helper: Migrate old format [0,0,1,1] to new format [{modelIndex: 0, count: 2}, ...]
+        function migrateOldSelectedIndices(oldIndices) {
+            const counts = {};
+            const order = [];
+            for (const idx of oldIndices) {
+                if (!(idx in counts)) {
+                    counts[idx] = 0;
+                    order.push(idx);
+                }
+                counts[idx]++;
+            }
+            return order.map(modelIndex => ({ modelIndex, count: counts[modelIndex] }));
+        }
 
         // Background audio to prevent iOS from pausing when screen is off
         let audioContext = null;
@@ -1251,11 +1375,26 @@
                 systemPrompts = await loadData('systemPrompts', []);
                 activePromptId = await loadData('activePromptId', null);
                 currentConversation = await loadData('currentConversation', []);
-                selectedModelIndices = await loadData('selectedModelIndices', []);
 
-                // Sanitize selectedModelIndices to prevent stale indices
-                selectedModelIndices = selectedModelIndices
-                    .filter(idx => Number.isInteger(idx) && idx >= 0 && idx < models.length);
+                // Load model entries (new format) or migrate from old format
+                let storedEntries = await loadData('selectedModelEntries', null);
+                if (storedEntries === null) {
+                    // Try loading old format and migrate
+                    const oldIndices = await loadData('selectedModelIndices', []);
+                    if (oldIndices.length > 0) {
+                        selectedModelEntries = migrateOldSelectedIndices(oldIndices);
+                    } else {
+                        selectedModelEntries = [];
+                    }
+                } else {
+                    selectedModelEntries = storedEntries;
+                }
+
+                // Sanitize entries to prevent stale indices
+                selectedModelEntries = selectedModelEntries
+                    .filter(e => e && typeof e.modelIndex === 'number' &&
+                                 e.modelIndex >= 0 && e.modelIndex < models.length &&
+                                 e.count > 0);
 
                 multiModelMode = await loadData('multiModelMode', 'parallel');
                 rotationIndex = await loadData('rotationIndex', 0);
@@ -1284,7 +1423,7 @@
                     saveData('systemPrompts', systemPrompts),
                     saveData('activePromptId', activePromptId),
                     saveData('currentConversation', currentConversation),
-                    saveData('selectedModelIndices', selectedModelIndices),
+                    saveData('selectedModelEntries', selectedModelEntries),
                     saveData('multiModelMode', multiModelMode),
                     saveData('rotationIndex', rotationIndex),
                     saveData('iterationCount', iterationCount),
@@ -1658,13 +1797,14 @@
 
         function updateModelPickerButton() {
             const btn = document.getElementById('model-picker-btn');
-            if (selectedModelIndices.length === 0) {
+            const totalInstances = getTotalModelInstances();
+            if (totalInstances === 0) {
                 btn.textContent = 'Select Models';
-            } else if (selectedModelIndices.length === 1) {
-                const name = models[selectedModelIndices[0]]?.name;
+            } else if (totalInstances === 1 && selectedModelEntries.length === 1) {
+                const name = models[selectedModelEntries[0].modelIndex]?.name;
                 btn.textContent = name ? stripCompanyPrefix(name) : 'Select Models';
             } else {
-                btn.textContent = `${selectedModelIndices.length} Models (${multiModelMode})`;
+                btn.textContent = `${totalInstances} Models (${multiModelMode})`;
             }
         }
 
@@ -1697,34 +1837,31 @@
                 models.forEach((model, index) => {
                     const wrapper = document.createElement('div');
                     wrapper.style.cssText = 'display: flex; align-items: center; gap: 8px; margin-bottom: 5px;';
+                    wrapper.dataset.modelIndex = index;
 
                     const label = document.createElement('label');
-                    // Let CSS handle the label styling (grid layout)
                     label.style.cssText = 'flex: 1; margin-bottom: 0;';
 
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
                     checkbox.value = index;
 
-                    // Count how many times this model is selected
-                    const instanceCount = selectedModelIndices.filter(i => i === index).length;
+                    // Get instance count from new structure
+                    const instanceCount = getInstanceCount(index);
                     checkbox.checked = instanceCount > 0;
 
                     checkbox.addEventListener('change', (e) => {
                         const countInput = wrapper.querySelector('input[type="number"]');
                         if (e.target.checked) {
-                            // Add instances based on count input
                             const count = parseInt(countInput.value) || 1;
-                            for (let i = 0; i < count; i++) {
-                                selectedModelIndices.push(index);
-                            }
+                            setInstanceCount(index, count);
                         } else {
-                            // Remove all instances of this model
-                            selectedModelIndices = selectedModelIndices.filter(i => i !== index);
+                            setInstanceCount(index, 0);
                             countInput.value = 1;
                         }
                         saveToStorage();
                         updateModelPickerButton();
+                        refreshReorderButtons();
                     });
 
                     label.appendChild(checkbox);
@@ -1761,6 +1898,32 @@
 
                     label.appendChild(modelInfo);
 
+                    // Reorder buttons container
+                    const reorderBtns = document.createElement('div');
+                    reorderBtns.className = 'reorder-buttons';
+                    reorderBtns.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
+
+                    const upBtn = document.createElement('button');
+                    upBtn.innerHTML = '&#9650;';
+                    upBtn.title = 'Move up';
+                    upBtn.style.cssText = 'padding: 0 4px; font-size: 10px; background: #3a3a3a; border: 1px solid #4a4a4a; color: #888; border-radius: 3px; cursor: pointer; line-height: 1;';
+                    upBtn.onclick = () => {
+                        reorderModelEntry(index, -1);
+                        openModelPicker(); // Refresh UI
+                    };
+
+                    const downBtn = document.createElement('button');
+                    downBtn.innerHTML = '&#9660;';
+                    downBtn.title = 'Move down';
+                    downBtn.style.cssText = 'padding: 0 4px; font-size: 10px; background: #3a3a3a; border: 1px solid #4a4a4a; color: #888; border-radius: 3px; cursor: pointer; line-height: 1;';
+                    downBtn.onclick = () => {
+                        reorderModelEntry(index, 1);
+                        openModelPicker(); // Refresh UI
+                    };
+
+                    reorderBtns.appendChild(upBtn);
+                    reorderBtns.appendChild(downBtn);
+
                     // Add instance count input
                     const countInput = document.createElement('input');
                     countInput.type = 'number';
@@ -1775,25 +1938,31 @@
 
                         const newCount = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
                         e.target.value = newCount;
-
-                        // Remove all existing instances of this model
-                        selectedModelIndices = selectedModelIndices.filter(i => i !== index);
-
-                        // Add the new count of instances
-                        for (let i = 0; i < newCount; i++) {
-                            selectedModelIndices.push(index);
-                        }
-
+                        setInstanceCount(index, newCount);
                         saveToStorage();
                         updateModelPickerButton();
                     });
 
                     // Assemble the wrapper
                     wrapper.appendChild(label);
+                    wrapper.appendChild(reorderBtns);
                     wrapper.appendChild(countInput);
                     checkboxesContainer.appendChild(wrapper);
                 });
             }
+
+            // Helper to show/hide reorder buttons based on selection
+            function refreshReorderButtons() {
+                const wrappers = checkboxesContainer.querySelectorAll('[data-model-index]');
+                wrappers.forEach(w => {
+                    const idx = parseInt(w.dataset.modelIndex);
+                    const btns = w.querySelector('.reorder-buttons');
+                    if (btns) {
+                        btns.style.visibility = isModelSelected(idx) ? 'visible' : 'hidden';
+                    }
+                });
+            }
+            refreshReorderButtons();
 
             // Set the current mode
             document.querySelectorAll('input[name="model-mode"]').forEach(radio => {
@@ -1860,6 +2029,9 @@
                 markdownRenderingCheckbox.checked = enableMarkdownRendering;
             }
 
+            // Update context token display
+            updateTokenDisplay();
+
             popup.style.display = 'flex';
         }
 
@@ -1897,8 +2069,8 @@
                 return;
             }
 
-            if (selectedModelIndices.length < 2) {
-                alert('Please select at least 2 models for autonomous mode');
+            if (getTotalModelInstances() < 2) {
+                alert('Please select at least 2 model instances for autonomous mode');
                 return;
             }
 
@@ -1920,14 +2092,15 @@
             autoBtn.style.background = '#ff4a4a';
 
             // Run for iterationCount rounds per model (or until stopped manually)
-            // Total rounds = iterationCount * number of models
-            while (isAutonomousRunning && autonomousRounds < (iterationCount * selectedModelIndices.length)) {
+            // Total rounds = iterationCount * number of model instances
+            const totalInstances = getTotalModelInstances();
+            while (isAutonomousRunning && autonomousRounds < (iterationCount * totalInstances)) {
                 try {
                     await handleAutonomousRound();
                     autonomousRounds++;
 
                     // Delay between rounds (configurable)
-                    if (responseDelay > 0 && autonomousRounds < (iterationCount * selectedModelIndices.length)) {
+                    if (responseDelay > 0 && autonomousRounds < (iterationCount * totalInstances)) {
                         await new Promise(resolve => setTimeout(resolve, responseDelay));
                     }
                 } catch (error) {
@@ -2193,10 +2366,10 @@
             if (!confirm('Delete this model?')) return;
             models.splice(index, 1);
 
-            // Update selectedModelIndices to remove this index and adjust higher indices
-            selectedModelIndices = selectedModelIndices
-                .filter(i => i !== index)
-                .map(i => i > index ? i - 1 : i);
+            // Update selectedModelEntries: remove this index and adjust higher indices
+            selectedModelEntries = selectedModelEntries
+                .filter(e => e.modelIndex !== index)
+                .map(e => e.modelIndex > index ? { ...e, modelIndex: e.modelIndex - 1 } : e);
 
             saveToStorage();
             updateModelSelect();
@@ -2394,9 +2567,32 @@
             });
         }
 
+        // Lazy-load PDF.js on first use
+        let pdfjsLoaded = false;
+        async function loadPdfJs() {
+            if (pdfjsLoaded) return;
+            if (typeof pdfjsLib !== 'undefined') {
+                pdfjsLoaded = true;
+                return;
+            }
+
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+                script.onload = () => {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+                    pdfjsLoaded = true;
+                    resolve();
+                };
+                script.onerror = () => reject(new Error('Failed to load PDF.js'));
+                document.head.appendChild(script);
+            });
+        }
+
         // Extract text content from a PDF file
         async function extractTextFromPDF(file) {
             try {
+                await loadPdfJs();
                 const arrayBuffer = await file.arrayBuffer();
                 const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                 let fullText = '';
@@ -2591,7 +2787,7 @@
                 return;
             }
 
-            if (selectedModelIndices.length === 0) {
+            if (getTotalModelInstances() === 0) {
                 alert('Please select at least one model');
                 return;
             }
@@ -2680,7 +2876,7 @@
                 return;
             }
 
-            if (selectedModelIndices.length === 0) {
+            if (getTotalModelInstances() === 0) {
                 alert('Please select at least one model');
                 cancelPrefillMode();
                 return;
@@ -2746,7 +2942,8 @@
         async function handlePrefillMode(prefillContent) {
             // Similar to parallel mode but with prefilled content
             // For simplicity, use the first selected model for prefill continuation
-            const modelIndex = selectedModelIndices[0];
+            const expandedIndices = expandModelEntries();
+            const modelIndex = expandedIndices[0];
             const model = models[modelIndex];
 
             const assistantMessage = {
@@ -2776,8 +2973,9 @@
 
         async function handleParallelMode() {
             // All models answer independently in parallel, repeated for iterationCount times
+            const expandedIndices = expandModelEntries();
             for (let iteration = 0; iteration < iterationCount; iteration++) {
-                const promises = selectedModelIndices.map(async (modelIndex) => {
+                const promises = expandedIndices.map(async (modelIndex) => {
                     const model = models[modelIndex];
                     const assistantMessage = {
                         role: 'assistant',
@@ -2810,15 +3008,16 @@
 
         async function handleSerialMode() {
             // Models answer sequentially, each seeing previous responses, repeated for iterationCount times
+            const expandedIndices = expandModelEntries();
             for (let iteration = 0; iteration < iterationCount; iteration++) {
-                for (let i = 0; i < selectedModelIndices.length; i++) {
+                for (let i = 0; i < expandedIndices.length; i++) {
                     // Check if user stopped generation
                     if (userStoppedGeneration) {
                         console.log('User stopped generation, breaking out of serial mode');
                         return;
                     }
 
-                    const modelIndex = selectedModelIndices[i];
+                    const modelIndex = expandedIndices[i];
                     const model = models[modelIndex];
                     const assistantMessage = {
                         role: 'assistant',
@@ -2845,7 +3044,7 @@
                     renderConversation();
 
                     // Add delay before next model (unless it's the last model of the last iteration)
-                    if (responseDelay > 0 && !(iteration === iterationCount - 1 && i === selectedModelIndices.length - 1)) {
+                    if (responseDelay > 0 && !(iteration === iterationCount - 1 && i === expandedIndices.length - 1)) {
                         await new Promise(resolve => setTimeout(resolve, responseDelay));
                     }
                 }
@@ -2854,8 +3053,9 @@
 
         async function handleRotatingMode() {
             // Serial mode with rotating order, repeated for iterationCount times
+            const expandedIndices = expandModelEntries();
             for (let iteration = 0; iteration < iterationCount; iteration++) {
-                const orderedIndices = [...selectedModelIndices];
+                const orderedIndices = [...expandedIndices];
 
                 // Rotate based on rotationIndex
                 for (let i = 0; i < rotationIndex % orderedIndices.length; i++) {
@@ -2916,7 +3116,8 @@
             }
 
             // In autonomous mode, models converse with each other in rotating order
-            const orderedIndices = [...selectedModelIndices];
+            const expandedIndices = expandModelEntries();
+            const orderedIndices = [...expandedIndices];
 
             // Rotate based on rotationIndex
             for (let i = 0; i < rotationIndex % orderedIndices.length; i++) {
@@ -2948,9 +3149,7 @@
                 renderConversation();
             }
 
-            saveToStorage();
-
-            // Increment rotation
+            // Increment rotation and save
             rotationIndex++;
             saveToStorage();
         }
@@ -3006,7 +3205,7 @@
 
         // Check if conversation requires multi-model handling (either multiple selected or history has multiple)
         function isMultiModelContext() {
-            if (selectedModelIndices.length > 1) return true;
+            if (getTotalModelInstances() > 1) return true;
             // Check if conversation history has messages from multiple distinct models
             const modelsInHistory = new Set();
             for (const msg of currentConversation) {
@@ -3027,9 +3226,9 @@
                 }
             }
             // Also include currently selected models
-            for (const idx of selectedModelIndices) {
-                if (models[idx] && models[idx].name) {
-                    modelsInHistory.add(models[idx].name);
+            for (const entry of selectedModelEntries) {
+                if (models[entry.modelIndex] && models[entry.modelIndex].name) {
+                    modelsInHistory.add(models[entry.modelIndex].name);
                 }
             }
             return Array.from(modelsInHistory);
@@ -3732,7 +3931,8 @@
                 const hasThinking = msg.thinking && msg.thinking.trim().length > 0;
                 const hasRealContent = msg.content && msg.content.trim().length > 0 && !isPromotedThinking;
                 const shouldAutoExpand = !hasRealContent && hasThinking;
-                const isCollapsed = msg.thinkingCollapsed !== undefined ? msg.thinkingCollapsed : !shouldAutoExpand;
+                // Use view state (doesn't persist to storage/exports)
+                const isCollapsed = thinkingCollapseState[index] !== undefined ? thinkingCollapseState[index] : !shouldAutoExpand;
 
                 const thinkingId = `thinking-${index}`;
                 contentHtml += `
@@ -3881,12 +4081,9 @@
             if (element) {
                 element.classList.toggle('collapsed');
 
-                // Update the message's collapsed state
+                // Update view state (not saved to storage)
                 const index = parseInt(thinkingId.split('-')[1]);
-                if (currentConversation[index]) {
-                    currentConversation[index].thinkingCollapsed = element.classList.contains('collapsed');
-                    saveToStorage();
-                }
+                thinkingCollapseState[index] = element.classList.contains('collapsed');
             }
         }
 
@@ -4293,15 +4490,16 @@
                 }
                 if (!model) {
                     alert(`Cannot continue: model "${msg.modelName}" not found. Using first selected model instead.`);
-                    if (selectedModelIndices.length > 0) {
-                        model = models[selectedModelIndices[0]];
+                    const expandedIndices = expandModelEntries();
+                    if (expandedIndices.length > 0) {
+                        model = models[expandedIndices[0]];
                     } else {
                         alert('No models selected');
                         return;
                     }
                 }
-            } else if (selectedModelIndices.length > 0) {
-                model = models[selectedModelIndices[0]];
+            } else if (getTotalModelInstances() > 0) {
+                model = models[expandModelEntries()[0]];
             } else {
                 alert('Cannot continue: No models selected');
                 return;
@@ -4357,10 +4555,10 @@
                     alert(`Cannot regenerate: model "${msg.modelName}" not found in your saved models`);
                     return;
                 }
-            } else if (selectedModelIndices.length === 1) {
+            } else if (getTotalModelInstances() === 1) {
                 // If only one model selected, use that
-                model = models[selectedModelIndices[0]];
-            } else if (selectedModelIndices.length > 1) {
+                model = models[expandModelEntries()[0]];
+            } else if (getTotalModelInstances() > 1) {
                 // Multiple models but no modelName - ask user to select
                 alert('Cannot regenerate: Multiple models selected but original model not identified. This may be an old message.');
                 return;
