@@ -3216,6 +3216,12 @@
             let isFirstThinkingChunk = true; // Track if this is the first thinking chunk
 
             while (true) {
+                // Check if user stopped generation (abort signal triggered)
+                if (controller.signal.aborted) {
+                    await reader.cancel();
+                    break;
+                }
+
                 const { done, value } = await reader.read();
                 if (done) break;
 
@@ -3401,6 +3407,10 @@
             }
 
             // Validate that we received content (text, thinking, or images)
+            // Skip validation if user deliberately stopped generation
+            if (controller.signal.aborted) {
+                return; // User stopped, don't throw validation errors
+            }
             if (!hasReceivedContent && !assistantMessage.content && !assistantMessage.thinking && !assistantMessage.images?.length) {
                 // Log detailed diagnostic information
                 console.warn('Model completed streaming with no content', {
