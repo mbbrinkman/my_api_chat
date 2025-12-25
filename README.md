@@ -13,6 +13,7 @@ https://mbbrinkman.github.io/my_api_chat/api-chat.html
 - **Serial**: Models respond sequentially, each seeing previous model responses
 - **Rotating**: Serial mode with model order rotation on each turn
 - **Autonomous**: Models converse with each other without user input
+- **Model Reordering**: Use arrow buttons to control execution order in Serial/Rotating modes
 
 ### Core Functionality
 - Real-time streaming responses
@@ -64,11 +65,12 @@ Example model IDs:
 
 ## Technical Details
 
-- Single HTML file application (~4200 lines)
+- Single HTML file application (~4800 lines)
 - No build process or dependencies required
 - Client-side JavaScript only
 - Uses KaTeX (via CDN) for LaTeX math rendering
-- Custom markdown rendering for bold, italic, code blocks
+- Uses marked.js (via CDN) for GitHub Flavored Markdown rendering
+- PDF.js for PDF text extraction (lazy-loaded on first PDF upload)
 - IndexedDB for data persistence (50 MB to several GB storage)
 - Supports all modern browsers including mobile (iPhone/iPad tested)
 
@@ -121,4 +123,6 @@ This work is released into the public domain. You can copy, modify, distribute a
 
 - OpenRouter API: https://openrouter.ai
 - KaTeX: https://katex.org
+- marked.js: https://marked.js.org
+- PDF.js: https://mozilla.github.io/pdf.js
 
