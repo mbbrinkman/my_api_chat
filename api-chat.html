@@ -760,9 +760,9 @@
                 <textarea id="message-input" placeholder="Type a message... (Click Send button to send)"></textarea>
                 <div class="send-controls">
                     <button id="send-btn">Send</button>
-                    <button id="prefill-btn" title="Start an assistant response that models will continue">Prefill</button>
                     <button id="stop-btn">Stop</button>
                     <button id="auto-btn" style="display: none;">Start Auto</button>
+                    <button id="prefill-btn" title="Start an assistant response that models will continue">Prefill</button>
                 </div>
             </div>
             <div id="model-picker-popup" style="display: none;">
@@ -1946,6 +1946,18 @@
 
             if (isAutonomousRunning) {
                 isAutonomousRunning = false;
+                userStoppedGeneration = true;
+
+                // Abort all ongoing requests to stop immediately
+                currentAbortControllers.forEach(controller => {
+                    try {
+                        controller.abort();
+                    } catch (e) {
+                        console.error('Error aborting request:', e);
+                    }
+                });
+                currentAbortControllers = [];
+
                 autoBtn.textContent = 'Start Auto';
                 autoBtn.style.background = '#4a9eff';
                 return;
@@ -2615,11 +2627,20 @@
         function showStopButton() {
             document.getElementById('send-btn').style.display = 'none';
             document.getElementById('stop-btn').style.display = 'block';
+            // In autonomous mode, hide auto button when stop button is shown
+            if (multiModelMode === 'autonomous') {
+                document.getElementById('auto-btn').style.display = 'none';
+            }
         }
 
         function hideStopButton() {
             document.getElementById('stop-btn').style.display = 'none';
-            document.getElementById('send-btn').style.display = 'block';
+            // In autonomous mode, restore auto button instead of send button
+            if (multiModelMode === 'autonomous') {
+                document.getElementById('auto-btn').style.display = 'block';
+            } else {
+                document.getElementById('send-btn').style.display = 'block';
+            }
         }
 
         function stopGeneration() {
