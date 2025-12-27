@@ -1981,6 +1981,7 @@
             }
 
             isAutonomousRunning = true;
+            userStoppedGeneration = false;  // Reset stop flag when starting
             autonomousRounds = 0;
             autoBtn.textContent = 'Stop Auto';
             autoBtn.style.background = '#ff4a4a';
