@@ -1208,7 +1208,7 @@
         let currentAbortControllers = [];
         let conversationHistory = []; // Array to store saved conversations
         let renderTimer = null; // Timer for debouncing render calls during streaming
-        let thinkingCollapseState = {}; // View state for thinking section collapse (keyed by message index)
+        let thinkingCollapseState = {}; // View state for thinking section collapse (keyed by message timestamp or index)
 
         // Helper: Expand selectedModelEntries to flat array of indices for iteration
         function expandModelEntries() {
@@ -1261,6 +1261,18 @@
                 counts[idx]++;
             }
             return order.map(modelIndex => ({ modelIndex, count: counts[modelIndex] }));
+        }
+
+        // Helper: Check if an assistant message has content
+        function hasMessageContent(msg) {
+            return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
+        }
+
+        // Helper: Remove empty assistant messages from conversation
+        function removeEmptyAssistantMessages() {
+            currentConversation = currentConversation.filter(msg =>
+                msg.role !== 'assistant' || hasMessageContent(msg)
+            );
         }
 
         // Background audio to prevent iOS from pausing when screen is off
@@ -2038,12 +2050,7 @@ ${apiKeyRef},
                     console.error('Autonomous error:', error);
 
                     // Remove any empty assistant messages that were added before the error
-                    currentConversation = currentConversation.filter(msg => {
-                        if (msg.role === 'assistant') {
-                            return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
-                        }
-                        return true;
-                    });
+                    removeEmptyAssistantMessages();
 
                     isAutonomousRunning = false;
                     autoBtn.textContent = 'Start Auto';
@@ -2055,12 +2062,7 @@ ${apiKeyRef},
             }
 
             // Final cleanup: Remove any empty assistant messages
-            currentConversation = currentConversation.filter(msg => {
-                if (msg.role === 'assistant') {
-                    return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
-                }
-                return true;
-            });
+            removeEmptyAssistantMessages();
 
             // Reset button when done (either completed iterations or stopped manually)
             isAutonomousRunning = false;
@@ -2833,13 +2835,7 @@ ${apiKeyRef},
                 console.error('Error:', error);
 
                 // Remove any empty assistant messages that were added before the error
-                currentConversation = currentConversation.filter(msg => {
-                    if (msg.role === 'assistant') {
-                        // Keep messages that have content, thinking, or images
-                        return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
-                    }
-                    return true; // Keep all user messages
-                });
+                removeEmptyAssistantMessages();
 
                 // Add user-friendly error message
                 const errorMessage = {
@@ -2852,12 +2848,7 @@ ${apiKeyRef},
             }
 
             // Final cleanup: Remove any empty assistant messages that may have slipped through
-            currentConversation = currentConversation.filter(msg => {
-                if (msg.role === 'assistant') {
-                    return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
-                }
-                return true;
-            });
+            removeEmptyAssistantMessages();
 
             isStreaming = false;
             stopBackgroundAudio(); // Stop silent audio when done
@@ -2923,12 +2914,7 @@ ${apiKeyRef},
             }
 
             // Final cleanup
-            currentConversation = currentConversation.filter(msg => {
-                if (msg.role === 'assistant') {
-                    return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
-                }
-                return true;
-            });
+            removeEmptyAssistantMessages();
 
             isStreaming = false;
             stopBackgroundAudio();
@@ -3569,15 +3555,6 @@ ${apiKeyRef},
                 body.stop = [...new Set([...dynamicStopSequences, ...existingStops])].slice(0, 4);
             }
 
-            // Debug: Log the actual messages being sent (remove in production)
-            console.log('API Request for', model.name, ':', {
-                model: body.model,
-                modalities: body.modalities,
-                stream: body.stream,
-                messageCount: body.messages.length
-            });
-            console.log('Full request body:', JSON.stringify(body, null, 2));
-
             const apiKey = resolveApiKey(model);
 
             // Validate API key
@@ -3683,11 +3660,6 @@ ${apiKeyRef},
                         try {
                             const parsed = JSON.parse(data);
 
-                            // Debug: Log each chunk to see what we're receiving
-                            if (parsed.choices?.[0]?.delta?.images || parsed.choices?.[0]?.message?.images) {
-                                console.log('Image data received:', parsed);
-                            }
-
                             // Check for OpenRouter error in response body (HTTP 200 with error field)
                             // OpenRouter returns rate limits and other errors as HTTP 200 with error object
                             if (parsed.error) {
@@ -3715,7 +3687,6 @@ ${apiKeyRef},
                                 }
                                 for (const img of delta.images) {
                                     if (img.image_url?.url && !assistantMessage.images.find(i => i.url === img.image_url.url)) {
-                                        console.log('Received image in streaming delta:', img.image_url.url.substring(0, 50) + '...');
                                         assistantMessage.images.push({
                                             url: img.image_url.url
                                         });
@@ -3930,12 +3901,14 @@ ${apiKeyRef},
                 const hasThinking = msg.thinking && msg.thinking.trim().length > 0;
                 const hasRealContent = msg.content && msg.content.trim().length > 0 && !isPromotedThinking;
                 const shouldAutoExpand = !hasRealContent && hasThinking;
+                // Use message timestamp as stable key (fallback to index for old messages)
+                const msgKey = msg.timestamp || `idx-${index}`;
                 // Use view state (doesn't persist to storage/exports)
-                const isCollapsed = thinkingCollapseState[index] !== undefined ? thinkingCollapseState[index] : !shouldAutoExpand;
+                const isCollapsed = thinkingCollapseState[msgKey] !== undefined ? thinkingCollapseState[msgKey] : !shouldAutoExpand;
 
-                const thinkingId = `thinking-${index}`;
+                const thinkingId = `thinking-${msgKey}`;
                 contentHtml += `
-                    <div class="thinking-toggle" onclick="toggleThinking('${thinkingId}')">
+                    <div class="thinking-toggle" onclick="toggleThinking('${thinkingId}', '${msgKey}')">
                         Chain of Thought (click to ${isCollapsed ? 'expand' : 'collapse'})
                     </div>
                     <div id="${thinkingId}" class="thinking-content${isCollapsed ? ' collapsed' : ''}">
@@ -4075,14 +4048,13 @@ ${apiKeyRef},
             }
         }
 
-        function toggleThinking(thinkingId) {
+        function toggleThinking(thinkingId, msgKey) {
             const element = document.getElementById(thinkingId);
             if (element) {
                 element.classList.toggle('collapsed');
 
-                // Update view state (not saved to storage)
-                const index = parseInt(thinkingId.split('-')[1]);
-                thinkingCollapseState[index] = element.classList.contains('collapsed');
+                // Update view state using message key (not saved to storage)
+                thinkingCollapseState[msgKey] = element.classList.contains('collapsed');
             }
         }
 
@@ -4187,7 +4159,8 @@ ${apiKeyRef},
 
             parentDiv.innerHTML = `
                 <div class="name-editor">
-                    <input type="text" value="${escapeHtml(currentName)}" id="name-edit-input-${index}">
+                    <input type="text" value="${escapeHtml(currentName)}" id="name-edit-input-${index}"
+                           onkeydown="handleNameEditKey(event, ${index})">
                     <button onclick="saveMessageName(${index})">Save</button>
                     <button onclick="cancelNameEdit(${index})">Cancel</button>
                 </div>
@@ -4201,15 +4174,14 @@ ${apiKeyRef},
             if (input) {
                 input.focus();
                 input.select();
+            }
+        }
 
-                // Handle Enter key
-                input.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
-                        saveMessageName(index);
-                    } else if (e.key === 'Escape') {
-                        cancelNameEdit(index);
-                    }
-                });
+        function handleNameEditKey(e, index) {
+            if (e.key === 'Enter') {
+                saveMessageName(index);
+            } else if (e.key === 'Escape') {
+                cancelNameEdit(index);
             }
         }
 
@@ -4220,8 +4192,13 @@ ${apiKeyRef},
             const input = document.getElementById(`name-edit-input-${index}`);
             if (!input) return;
 
-            const newName = input.value.trim();
+            // Sanitize the name: remove control chars, collapse whitespace, limit length
+            let newName = input.value
+                .replace(/[\r\n\t]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
             if (!newName) return;
+            if (newName.length > 100) newName = newName.substring(0, 100);
 
             // Update the message
             if (msg.role === 'user') {
@@ -4458,12 +4435,7 @@ ${apiKeyRef},
             }
 
             // Final cleanup
-            currentConversation = currentConversation.filter(msg => {
-                if (msg.role === 'assistant') {
-                    return msg.content || msg.thinking || (msg.images && msg.images.length > 0);
-                }
-                return true;
-            });
+            removeEmptyAssistantMessages();
 
             isStreaming = false;
             stopBackgroundAudio();
@@ -4964,7 +4936,20 @@ ${apiKeyRef},
                 systemPrompts,
                 activePromptId,
                 currentConversation,
+                selectedModelEntries,
+                multiModelMode,
+                iterationCount,
+                messageHistoryLimit,
+                includeFilesInHistory,
+                responseDelay,
+                enableModelIdentity,
+                enableBackgroundAudio,
+                enableExtendedThinking,
+                enableLatexRendering,
+                enableMarkdownRendering,
+                thinkingEffort,
                 userIdentifier,
+                conversationHistory,
                 exportDate: new Date().toISOString()
             };
             downloadJSON(data, `api-chat-backup-${Date.now()}.json`);
@@ -4979,11 +4964,29 @@ ${apiKeyRef},
                 try {
                     const data = JSON.parse(e.target.result);
 
+                    // Core data
                     if (data.models) models = data.models;
                     if (data.apiKeys) apiKeys = data.apiKeys;
                     if (data.systemPrompts) systemPrompts = data.systemPrompts;
-                    if (data.activePromptId) activePromptId = data.activePromptId;
+                    if ('activePromptId' in data) activePromptId = data.activePromptId;
                     if (data.currentConversation) currentConversation = data.currentConversation;
+                    if (data.conversationHistory) conversationHistory = data.conversationHistory;
+
+                    // Model selection
+                    if (data.selectedModelEntries) selectedModelEntries = data.selectedModelEntries;
+                    if (data.multiModelMode) multiModelMode = data.multiModelMode;
+                    if ('iterationCount' in data) iterationCount = data.iterationCount;
+
+                    // Settings
+                    if ('messageHistoryLimit' in data) messageHistoryLimit = data.messageHistoryLimit;
+                    if ('includeFilesInHistory' in data) includeFilesInHistory = data.includeFilesInHistory;
+                    if ('responseDelay' in data) responseDelay = data.responseDelay;
+                    if ('enableModelIdentity' in data) enableModelIdentity = data.enableModelIdentity;
+                    if ('enableBackgroundAudio' in data) enableBackgroundAudio = data.enableBackgroundAudio;
+                    if ('enableExtendedThinking' in data) enableExtendedThinking = data.enableExtendedThinking;
+                    if ('enableLatexRendering' in data) enableLatexRendering = data.enableLatexRendering;
+                    if ('enableMarkdownRendering' in data) enableMarkdownRendering = data.enableMarkdownRendering;
+                    if (data.thinkingEffort) thinkingEffort = data.thinkingEffort;
                     if (data.userIdentifier) userIdentifier = data.userIdentifier;
 
                     await saveToStorage();
