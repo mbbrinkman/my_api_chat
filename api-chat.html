@@ -1675,33 +1675,32 @@
                 : `"api_key": "your-openrouter-api-key-here"`;
 
             configTextarea.value = `"endpoint": "https://openrouter.ai/api/v1/chat/completions",
-  "model_id": "anthropic/claude-3.5-sonnet",
-  ${apiKeyRef},
-  "system_prompt": "",
-  "max_tokens": null,
-  "temperature": 1.0,
-  "top_p": 1.0,
-  "top_k": 0,
-  "frequency_penalty": 0,
-  "presence_penalty": 0,
-  "repetition_penalty": 1,
-  "min_p": 0,
-  "top_a": 0,
-  "seed": null,
-  "logit_bias": null,
-  "logprobs": null,
-  "top_logprobs": null,
-  "response_format": null,
-  "stop": null,
-  "tools": null,
-  "tool_choice": null,
-  "reasoning": null,
-  "provider": null,
-  "models": null,
-  "route": null,
-  "transforms": null,
-  "timeout": 120000
-`;
+"model_id": "anthropic/claude-3.5-sonnet",
+${apiKeyRef},
+"system_prompt": "",
+"max_tokens": null,
+"temperature": 1.0,
+"top_p": 1.0,
+"top_k": 0,
+"frequency_penalty": 0,
+"presence_penalty": 0,
+"repetition_penalty": 1,
+"min_p": 0,
+"top_a": 0,
+"seed": null,
+"logit_bias": null,
+"logprobs": null,
+"top_logprobs": null,
+"response_format": null,
+"stop": null,
+"tools": null,
+"tool_choice": null,
+"reasoning": null,
+"provider": null,
+"models": null,
+"route": null,
+"transforms": null,
+"timeout": 120000`;
         }
 
         function switchTab(tabName) {
@@ -2282,9 +2281,14 @@
 
             document.getElementById('new-model-name').value = name;
 
-            // Convert config back to formatted JSON without outer braces
+            // Convert config back to formatted JSON without outer braces, normalized indentation
             const configJson = JSON.stringify(config, null, 2);
-            const withoutBraces = configJson.substring(1, configJson.length - 1).trim();
+            const withoutBraces = configJson
+                .substring(1, configJson.length - 1)
+                .trim()
+                .split('\n')
+                .map(line => line.replace(/^  /, ''))  // Remove leading 2-space indent
+                .join('\n');
             document.getElementById('new-model-config').value = withoutBraces;
 
             // Track which model is being edited (don't delete yet)
@@ -2334,10 +2338,15 @@
                 div.className = 'prompt-item';
 
                 // Create config object without the name field for display
-                // Strip outer braces to match the edit format
+                // Strip outer braces and normalize indentation to match the edit format
                 const { name, ...config } = model;
                 const configJson = JSON.stringify(config, null, 2);
-                const configWithoutBraces = configJson.substring(1, configJson.length - 1).trim();
+                const configWithoutBraces = configJson
+                    .substring(1, configJson.length - 1)
+                    .trim()
+                    .split('\n')
+                    .map(line => line.replace(/^  /, ''))  // Remove leading 2-space indent
+                    .join('\n');
 
                 div.innerHTML = `
                     <h4>${escapeHtml(model.name)}</h4>
