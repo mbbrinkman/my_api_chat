@@ -3231,7 +3231,7 @@ ${apiKeyRef},
                     otherParticipants.push(...otherModels);
                 }
 
-                systemPrompt = `You are ${sanitizedName}. Current time: ${now}.`;
+                systemPrompt = `You are ${sanitizedName}. This is your name for this conversation—how others address you and how you should refer to yourself. If unfamiliar, it was assigned after your training. Current time: ${now}.`;
                 if (otherParticipants.length > 0) {
                     systemPrompt += ` Other participants: ${otherParticipants.join(', ')}.`;
                 }
