@@ -1143,6 +1143,8 @@
         let apiKeys = [];
         let systemPrompts = [];
         let activePromptId = null;
+        let editingModelIndex = null; // Track which model is being edited
+        let editingPromptId = null; // Track which prompt is being edited
         let currentConversation = [];
         let attachedFiles = [];
         let editingMessageIndex = null;
@@ -1673,33 +1675,32 @@
                 : `"api_key": "your-openrouter-api-key-here"`;
 
             configTextarea.value = `"endpoint": "https://openrouter.ai/api/v1/chat/completions",
-  "model_id": "anthropic/claude-3.5-sonnet",
-  ${apiKeyRef},
-  "system_prompt": "",
-  "max_tokens": null,
-  "temperature": 1.0,
-  "top_p": 1.0,
-  "top_k": 0,
-  "frequency_penalty": 0,
-  "presence_penalty": 0,
-  "repetition_penalty": 1,
-  "min_p": 0,
-  "top_a": 0,
-  "seed": null,
-  "logit_bias": null,
-  "logprobs": null,
-  "top_logprobs": null,
-  "response_format": null,
-  "stop": null,
-  "tools": null,
-  "tool_choice": null,
-  "reasoning": null,
-  "provider": null,
-  "models": null,
-  "route": null,
-  "transforms": null,
-  "timeout": 120000
-`;
+"model_id": "anthropic/claude-3.5-sonnet",
+${apiKeyRef},
+"system_prompt": "",
+"max_tokens": null,
+"temperature": 1.0,
+"top_p": 1.0,
+"top_k": 0,
+"frequency_penalty": 0,
+"presence_penalty": 0,
+"repetition_penalty": 1,
+"min_p": 0,
+"top_a": 0,
+"seed": null,
+"logit_bias": null,
+"logprobs": null,
+"top_logprobs": null,
+"response_format": null,
+"stop": null,
+"tools": null,
+"tool_choice": null,
+"reasoning": null,
+"provider": null,
+"models": null,
+"route": null,
+"transforms": null,
+"timeout": 120000`;
         }
 
         function switchTab(tabName) {
@@ -2067,13 +2068,26 @@
                 return;
             }
 
-            const prompt = {
-                id: Date.now().toString(),
-                name,
-                content
-            };
+            if (editingPromptId !== null) {
+                // Update existing prompt
+                const promptIndex = systemPrompts.findIndex(p => p.id === editingPromptId);
+                if (promptIndex !== -1) {
+                    systemPrompts[promptIndex].name = name;
+                    systemPrompts[promptIndex].content = content;
+                }
+                editingPromptId = null;
+                const addBtn = document.querySelector('#settings-tab button[onclick="addSystemPrompt()"]');
+                if (addBtn) addBtn.textContent = 'Add Prompt';
+            } else {
+                // Add new prompt
+                const prompt = {
+                    id: Date.now().toString(),
+                    name,
+                    content
+                };
+                systemPrompts.push(prompt);
+            }
 
-            systemPrompts.push(prompt);
             saveToStorage();
             updatePromptsList();
 
@@ -2088,11 +2102,23 @@
             document.getElementById('new-prompt-name').value = prompt.name;
             document.getElementById('new-prompt-content').value = prompt.content;
 
-            // Delete the old prompt
-            deletePrompt(id);
+            // Track which prompt is being edited (don't delete yet)
+            editingPromptId = id;
+
+            // Update button text to indicate editing mode
+            const addBtn = document.querySelector('#settings-tab button[onclick="addSystemPrompt()"]');
+            if (addBtn) addBtn.textContent = 'Save Prompt';
 
             // Scroll to the form
             document.querySelector('#new-prompt-name').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cancelPromptEdit() {
+            editingPromptId = null;
+            document.getElementById('new-prompt-name').value = '';
+            document.getElementById('new-prompt-content').value = '';
+            const addBtn = document.querySelector('#settings-tab button[onclick="addSystemPrompt()"]');
+            if (addBtn) addBtn.textContent = 'Add Prompt';
         }
 
         function deletePrompt(id) {
@@ -2224,16 +2250,26 @@
                     ...config
                 };
 
-                models.push(model);
+                if (editingModelIndex !== null) {
+                    // Update existing model
+                    models[editingModelIndex] = model;
+                    editingModelIndex = null;
+                    const addBtn = document.querySelector('#settings-tab button[onclick="addModel()"]');
+                    if (addBtn) addBtn.textContent = 'Add Model';
+                    alert('Model updated successfully!');
+                } else {
+                    // Add new model
+                    models.push(model);
+                    alert('Model added successfully!');
+                }
+
                 saveToStorage();
                 updateModelSelect();
                 updateModelsList();
 
-                // Clear form
+                // Clear form and reload template
                 document.getElementById('new-model-name').value = '';
-                document.getElementById('new-model-config').value = '';
-
-                alert('Model added successfully!');
+                updateModelConfigTemplate();
             } catch (e) {
                 alert('Invalid JSON configuration: ' + e.message);
             }
@@ -2245,16 +2281,33 @@
 
             document.getElementById('new-model-name').value = name;
 
-            // Convert config back to formatted JSON without outer braces
+            // Convert config back to formatted JSON without outer braces, normalized indentation
             const configJson = JSON.stringify(config, null, 2);
-            const withoutBraces = configJson.substring(1, configJson.length - 1).trim();
+            const withoutBraces = configJson
+                .substring(1, configJson.length - 1)
+                .trim()
+                .split('\n')
+                .map(line => line.replace(/^  /, ''))  // Remove leading 2-space indent
+                .join('\n');
             document.getElementById('new-model-config').value = withoutBraces;
 
-            // Delete the old model
-            deleteModel(index);
+            // Track which model is being edited (don't delete yet)
+            editingModelIndex = index;
+
+            // Update button text to indicate editing mode
+            const addBtn = document.querySelector('#settings-tab button[onclick="addModel()"]');
+            if (addBtn) addBtn.textContent = 'Save Model';
 
             // Scroll to the form
             document.querySelector('#new-model-name').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cancelModelEdit() {
+            editingModelIndex = null;
+            document.getElementById('new-model-name').value = '';
+            updateModelConfigTemplate();
+            const addBtn = document.querySelector('#settings-tab button[onclick="addModel()"]');
+            if (addBtn) addBtn.textContent = 'Add Model';
         }
 
         function deleteModel(index) {
@@ -2285,8 +2338,15 @@
                 div.className = 'prompt-item';
 
                 // Create config object without the name field for display
+                // Strip outer braces and normalize indentation to match the edit format
                 const { name, ...config } = model;
                 const configJson = JSON.stringify(config, null, 2);
+                const configWithoutBraces = configJson
+                    .substring(1, configJson.length - 1)
+                    .trim()
+                    .split('\n')
+                    .map(line => line.replace(/^  /, ''))  // Remove leading 2-space indent
+                    .join('\n');
 
                 div.innerHTML = `
                     <h4>${escapeHtml(model.name)}</h4>
@@ -2295,7 +2355,7 @@
                     </div>
                     <details style="margin-bottom: 8px;">
                         <summary style="cursor: pointer; color: #4a9eff; font-size: 13px;">View Configuration</summary>
-                        <pre style="background: #1a1a1a; padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 12px; margin-top: 8px;">${escapeHtml(configJson)}</pre>
+                        <pre style="background: #1a1a1a; padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 12px; margin-top: 8px;">${escapeHtml(configWithoutBraces)}</pre>
                     </details>
                     <div class="prompt-actions">
                         <button onclick="editModel(${index})">Edit</button>
@@ -3171,7 +3231,7 @@
                     otherParticipants.push(...otherModels);
                 }
 
-                systemPrompt = `You are ${sanitizedName}. Current time: ${now}.`;
+                systemPrompt = `You are ${sanitizedName}. This is your name for this conversation—how others address you and how you should refer to yourself. If unfamiliar, it was assigned after your training. Current time: ${now}.`;
                 if (otherParticipants.length > 0) {
                     systemPrompt += ` Other participants: ${otherParticipants.join(', ')}.`;
                 }
