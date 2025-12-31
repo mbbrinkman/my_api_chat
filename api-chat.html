@@ -250,7 +250,19 @@
             white-space: pre-wrap;
         }
 
+        .message-content p:first-child {
+            margin-top: 0;
+        }
+
         .message-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .message-content > *:first-child {
+            margin-top: 0;
+        }
+
+        .message-content > *:last-child {
             margin-bottom: 0;
         }
 
@@ -3714,9 +3726,11 @@ ${apiKeyRef},
                             }
 
                             // Handle reasoning/thinking content when streaming
-                            if (delta?.reasoning) {
+                            // Support both 'reasoning' and 'thinking' field names for different providers
+                            const thinkingContent = delta?.reasoning || delta?.thinking;
+                            if (thinkingContent) {
                                 // Trim leading whitespace from first thinking chunk only
-                                const thinkingToAdd = isFirstThinkingChunk ? delta.reasoning.trimStart() : delta.reasoning;
+                                const thinkingToAdd = isFirstThinkingChunk ? thinkingContent.trimStart() : thinkingContent;
                                 assistantMessage.thinking += thinkingToAdd;
                                 hasReceivedContent = true;
                                 isFirstThinkingChunk = false;
@@ -3762,6 +3776,14 @@ ${apiKeyRef},
                                         }
                                     }
                                 }
+                                scheduleRender();
+                            }
+
+                            // Check for reasoning/thinking in non-streaming message
+                            const msgThinking = message?.reasoning || message?.thinking;
+                            if (msgThinking && !assistantMessage.thinking) {
+                                assistantMessage.thinking = msgThinking.trim();
+                                hasReceivedContent = true;
                                 scheduleRender();
                             }
                         } catch (e) {
@@ -3847,10 +3869,24 @@ ${apiKeyRef},
             });
         }
 
+        // Helper to check if content is essentially the same as thinking (promoted)
+        function isContentPromotedThinking(content, thinking) {
+            if (!content || !thinking) return false;
+            const c = content.trim();
+            const t = thinking.trim();
+            if (!c || !t) return false;
+            // Exact match
+            if (c === t) return true;
+            // Content is contained in thinking (thinking was truncated to content)
+            if (t.includes(c) && c.length > t.length * 0.8) return true;
+            // Thinking is contained in content (content has minor additions)
+            if (c.includes(t) && t.length > c.length * 0.8) return true;
+            return false;
+        }
+
         // Helper to build assistant message HTML (extracted for reuse)
         function buildAssistantMessageHtml(msg, index) {
-            const isPromotedThinking = msg.content && msg.thinking &&
-                                       msg.content.trim() === msg.thinking.trim();
+            const isPromotedThinking = isContentPromotedThinking(msg.content, msg.thinking);
             const rendered = isPromotedThinking ? '' : renderMarkdownWithLatex(msg.content);
             let contentHtml = '';
 
@@ -4607,6 +4643,9 @@ ${apiKeyRef},
 
         function renderMarkdownWithLatex(text) {
             if (!text) return '';
+
+            // Trim trailing whitespace to prevent extra <br> tags from marked
+            text = text.trimEnd();
 
             // If neither rendering is enabled, just escape and return
             if (!enableLatexRendering && !enableMarkdownRendering) {
