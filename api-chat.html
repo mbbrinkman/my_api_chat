@@ -845,7 +845,7 @@
                     <div class="mode-selector" style="margin-top: 10px;">
                         <label style="display: flex; align-items: center; gap: 8px;">
                             <input type="checkbox" id="enable-identity-checkbox" style="width: auto;">
-                            <span>Enable model identity injection (multi-model)</span>
+                            <span>Enable model identity injection</span>
                         </label>
                     </div>
                     <div class="mode-selector" style="margin-top: 10px;">
@@ -3227,36 +3227,12 @@ ${apiKeyRef},
         function buildSystemPrompt(model) {
             let systemPrompt = '';
 
-            // Add model identity information if enabled and in multi-model context
-            // This includes: multiple models selected OR conversation history has multiple models
-            const needsIdentity = enableModelIdentity && isMultiModelContext() && model.name;
-
-            if (needsIdentity) {
+            // Add model identity information if enabled
+            if (enableModelIdentity && model.name) {
                 const sanitizedName = sanitizeModelName(model.name);
                 const now = new Date().toLocaleString();
 
-                // Build list of other participants
-                const otherParticipants = [];
-                if (multiModelMode === 'parallel') {
-                    otherParticipants.push(userIdentifier);
-                } else if (multiModelMode === 'autonomous') {
-                    const otherModels = getModelsInConversation()
-                        .filter(name => name !== model.name)
-                        .map(name => sanitizeModelName(name));
-                    otherParticipants.push(...otherModels);
-                } else {
-                    otherParticipants.push(userIdentifier);
-                    const otherModels = getModelsInConversation()
-                        .filter(name => name !== model.name)
-                        .map(name => sanitizeModelName(name));
-                    otherParticipants.push(...otherModels);
-                }
-
-                systemPrompt = `You are ${sanitizedName}. This is your name for this conversation—how others address you and how you should refer to yourself. If unfamiliar, it was assigned after your training. Current time: ${now}.`;
-                if (otherParticipants.length > 0) {
-                    systemPrompt += ` Other participants: ${otherParticipants.join(', ')}.`;
-                }
-                systemPrompt += '\n\n';
+                systemPrompt = `You are ${sanitizedName}. This is your name for this conversation—how others address you and how you should refer to yourself. If unfamiliar, it was assigned after your training. Current time: ${now}.\n\n`;
             }
 
             // Use activePromptId if set, otherwise fall back to model's system_prompt
