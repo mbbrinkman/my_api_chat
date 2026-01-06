@@ -4296,19 +4296,27 @@ ${apiKeyRef},
             const container = document.getElementById('chat-messages');
             const messageDiv = container.children[index];
 
-            // Create textarea for editing
-            const textarea = document.createElement('textarea');
+            // Track which items to remove
+            let removeThinking = false;
+            let imagesToRemove = new Set();
 
-            // Fall back to thinking when content is empty
-            let initialValue = msg.content || '';
-            if (!initialValue && msg.thinking) {
-                initialValue = msg.thinking;
-            }
-            textarea.value = initialValue;
-            textarea.style.cssText = `
+            // Create editor container
+            const editorContainer = document.createElement('div');
+            editorContainer.style.cssText = 'display: flex; flex-direction: column; gap: 12px;';
+
+            // Content section
+            const contentSection = document.createElement('div');
+            const contentLabel = document.createElement('label');
+            contentLabel.textContent = 'Content';
+            contentLabel.style.cssText = 'display: block; font-size: 12px; color: #888; margin-bottom: 4px; font-weight: 600;';
+
+            const contentTextarea = document.createElement('textarea');
+            contentTextarea.value = msg.content || '';
+            contentTextarea.placeholder = 'Response content...';
+            contentTextarea.style.cssText = `
                 width: 100%;
-                min-height: 100px;
-                max-height: 400px;
+                min-height: 80px;
+                max-height: 300px;
                 overflow-y: auto;
                 padding: 12px;
                 background: #2a2a2a;
@@ -4320,15 +4328,134 @@ ${apiKeyRef},
                 resize: vertical;
                 box-sizing: border-box;
             `;
+            contentSection.appendChild(contentLabel);
+            contentSection.appendChild(contentTextarea);
+            editorContainer.appendChild(contentSection);
 
-            // Create button container
+            // Thinking/COT section (if exists)
+            let thinkingTextarea = null;
+            if (msg.thinking) {
+                const thinkingSection = document.createElement('div');
+                thinkingSection.id = 'thinking-edit-section';
+
+                const thinkingHeader = document.createElement('div');
+                thinkingHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;';
+
+                const thinkingLabel = document.createElement('label');
+                thinkingLabel.textContent = 'Chain of Thought';
+                thinkingLabel.style.cssText = 'font-size: 12px; color: #ff8c42; font-weight: 600;';
+
+                const removeThinkingBtn = document.createElement('button');
+                removeThinkingBtn.textContent = 'Remove';
+                removeThinkingBtn.style.cssText = 'padding: 2px 8px; background: #6b2a2a; border: none; color: #ff6b6b; border-radius: 4px; cursor: pointer; font-size: 11px;';
+                removeThinkingBtn.onclick = () => {
+                    removeThinking = true;
+                    thinkingSection.style.display = 'none';
+                };
+
+                thinkingHeader.appendChild(thinkingLabel);
+                thinkingHeader.appendChild(removeThinkingBtn);
+
+                thinkingTextarea = document.createElement('textarea');
+                thinkingTextarea.value = msg.thinking;
+                thinkingTextarea.placeholder = 'Chain of thought content...';
+                thinkingTextarea.style.cssText = `
+                    width: 100%;
+                    min-height: 60px;
+                    max-height: 200px;
+                    overflow-y: auto;
+                    padding: 12px;
+                    background: #2a2520;
+                    border: 1px solid #5a4a3a;
+                    color: #e0d0c0;
+                    border-radius: 8px;
+                    font-family: inherit;
+                    font-size: 14px;
+                    resize: vertical;
+                    box-sizing: border-box;
+                `;
+
+                thinkingSection.appendChild(thinkingHeader);
+                thinkingSection.appendChild(thinkingTextarea);
+                editorContainer.appendChild(thinkingSection);
+            }
+
+            // Images section (if exists)
+            if (msg.images && msg.images.length > 0) {
+                const imagesSection = document.createElement('div');
+
+                const imagesLabel = document.createElement('label');
+                imagesLabel.textContent = 'Generated Images';
+                imagesLabel.style.cssText = 'display: block; font-size: 12px; color: #888; margin-bottom: 8px; font-weight: 600;';
+                imagesSection.appendChild(imagesLabel);
+
+                const imagesGrid = document.createElement('div');
+                imagesGrid.style.cssText = 'display: flex; flex-wrap: wrap; gap: 8px;';
+                imagesGrid.id = 'images-edit-grid';
+
+                msg.images.forEach((image, imgIndex) => {
+                    const imageWrapper = document.createElement('div');
+                    imageWrapper.style.cssText = 'position: relative; display: inline-block;';
+                    imageWrapper.dataset.imgIndex = imgIndex;
+
+                    const img = document.createElement('img');
+                    img.src = image.url;
+                    img.alt = 'Generated image';
+                    img.style.cssText = 'max-width: 150px; max-height: 150px; border-radius: 6px; border: 1px solid #4a4a4a;';
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = '×';
+                    removeBtn.style.cssText = `
+                        position: absolute;
+                        top: 4px;
+                        right: 4px;
+                        width: 24px;
+                        height: 24px;
+                        background: rgba(107, 42, 42, 0.9);
+                        border: none;
+                        color: #ff6b6b;
+                        border-radius: 50%;
+                        cursor: pointer;
+                        font-size: 16px;
+                        font-weight: bold;
+                        line-height: 1;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    `;
+                    removeBtn.onclick = () => {
+                        imagesToRemove.add(imgIndex);
+                        imageWrapper.style.opacity = '0.3';
+                        removeBtn.disabled = true;
+                        removeBtn.textContent = '✓';
+                        removeBtn.style.background = 'rgba(42, 107, 42, 0.9)';
+                        removeBtn.style.color = '#6bff6b';
+                    };
+
+                    imageWrapper.appendChild(img);
+                    imageWrapper.appendChild(removeBtn);
+                    imagesGrid.appendChild(imageWrapper);
+                });
+
+                imagesSection.appendChild(imagesGrid);
+                editorContainer.appendChild(imagesSection);
+            }
+
+            // Button container
             const buttonContainer = document.createElement('div');
-            buttonContainer.style.cssText = 'margin-top: 8px; display: flex; gap: 8px;';
+            buttonContainer.style.cssText = 'margin-top: 4px; display: flex; gap: 8px;';
 
             const saveBtn = document.createElement('button');
             saveBtn.textContent = 'Save';
             saveBtn.style.cssText = 'padding: 6px 12px; background: #4a9eff; border: none; color: white; border-radius: 4px; cursor: pointer;';
-            saveBtn.onclick = () => saveInlineEdit(index, textarea.value, true);
+            saveBtn.onclick = () => {
+                saveAssistantEdit(index, {
+                    content: contentTextarea.value,
+                    thinking: removeThinking ? null : (thinkingTextarea ? thinkingTextarea.value : msg.thinking),
+                    removeThinking: removeThinking,
+                    imagesToRemove: imagesToRemove
+                });
+            };
 
             const cancelBtn = document.createElement('button');
             cancelBtn.textContent = 'Cancel';
@@ -4337,12 +4464,41 @@ ${apiKeyRef},
 
             buttonContainer.appendChild(saveBtn);
             buttonContainer.appendChild(cancelBtn);
+            editorContainer.appendChild(buttonContainer);
 
             // Replace message content with editor
             messageDiv.innerHTML = '';
-            messageDiv.appendChild(textarea);
-            messageDiv.appendChild(buttonContainer);
-            textarea.focus();
+            messageDiv.appendChild(editorContainer);
+            contentTextarea.focus();
+        }
+
+        function saveAssistantEdit(index, editData) {
+            const msg = currentConversation[index];
+            if (!msg) return;
+
+            // Update content
+            msg.content = editData.content;
+
+            // Handle thinking
+            if (editData.removeThinking) {
+                delete msg.thinking;
+            } else if (editData.thinking !== undefined) {
+                msg.thinking = editData.thinking;
+            }
+
+            // Handle images removal
+            if (editData.imagesToRemove && editData.imagesToRemove.size > 0 && msg.images) {
+                msg.images = msg.images.filter((_, idx) => !editData.imagesToRemove.has(idx));
+                if (msg.images.length === 0) {
+                    delete msg.images;
+                }
+            }
+
+            // Truncate conversation after this message
+            currentConversation = currentConversation.slice(0, index + 1);
+
+            saveToStorage();
+            renderConversation();
         }
 
         function saveInlineEdit(index, newContent, truncateAfter) {
